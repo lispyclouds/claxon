@@ -14,14 +14,11 @@
         ^Socket sock (->> urls
                           (map i/parse-nats-url)
                           (shuffle)
-                          (map (fn [{:keys [^String host ^Integer port]}]
-                                 (try
-                                   (doto (Socket.)
-                                     (.connect (InetSocketAddress. host port) timeout-ms))
-                                   (catch Exception _
-                                     nil))))
-                          (remove nil?)
-                          (first))
+                          (some (fn [{:keys [^String host ^Integer port]}]
+                                  (try
+                                    (doto (Socket.) (.connect (InetSocketAddress. host port) timeout-ms))
+                                    (catch Exception _
+                                      false)))))
         _ (when-not sock
             (throw (ex-info "Cannot connect to any of the urls" {:urls urls})))
         in (-> sock
