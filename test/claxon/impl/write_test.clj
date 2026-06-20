@@ -52,7 +52,7 @@
    claxon.impl.write/snd, returning the raw bytes written as a string."
   [op args payloads]
   (let [out (ByteArrayOutputStream.)
-        conn {:writer out :frame-shapes default-shapes}]
+        conn {:out out :frame-shapes default-shapes}]
     (iw/snd conn op args payloads)
     (String. (.toByteArray out) "UTF-8")))
 
@@ -243,7 +243,7 @@
           out (proxy [java.io.OutputStream] []
                 (write [b] nil)
                 (flush [] (swap! flush-count inc)))
-          conn {:writer out :frame-shapes default-shapes}]
+          conn {:out out :frame-shapes default-shapes}]
       (iw/snd conn "PUB" {:subject "FOO"} {:body "hi"})
       (is (>= @flush-count 2)))))
 

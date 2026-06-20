@@ -50,8 +50,8 @@
                  BufferedOutputStream.)
          conn {:id (swap! ic/conn-ids inc)
                :socket sock
-               :reader in
-               :writer out
+               :in in
+               :out out
                :executor executor
                :frame-shapes frame-shapes}]
      (run! (fn [[{:keys [op args]} f]]
@@ -70,10 +70,10 @@
      conn)))
 
 (defn close
-  [{:keys [socket executor id reader writer]}]
+  [{:keys [socket executor id in out]}]
   (swap! ic/handlers (fn [h] (vec (remove #(= (:conn %) id) h))))
-  (BufferedInputStream/.close reader)
-  (BufferedOutputStream/.close writer)
+  (BufferedInputStream/.close in)
+  (BufferedOutputStream/.close out)
   (ExecutorService/.shutdown executor)
   (Socket/.close socket))
 

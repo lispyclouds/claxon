@@ -60,7 +60,7 @@
            (str/join " ")))))
 
 (defn snd
-  [{:keys [^OutputStream writer frame-shapes]} op args payloads]
+  [{:keys [^OutputStream out frame-shapes]} op args payloads]
   (let [shape (get frame-shapes op)]
     (when-not shape
       (throw (ex-info "unknown op" {:op op})))
@@ -72,9 +72,9 @@
           args-line (render-args-line (:args shape) full-args)
           control (str op (when (seq args-line)
                             (str " " args-line)) "\r\n")]
-      (.write writer (.getBytes control "UTF-8"))
-      (.flush writer)
+      (.write out (.getBytes control "UTF-8"))
+      (.flush out)
       (when (seq encoded)
-        (run! #(.write writer ^bytes %) encoded)
-        (.write writer (.getBytes "\r\n" "UTF-8"))
-        (.flush writer)))))
+        (run! #(.write out ^bytes %) encoded)
+        (.write out (.getBytes "\r\n" "UTF-8"))
+        (.flush out)))))
