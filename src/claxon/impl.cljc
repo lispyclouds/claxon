@@ -212,7 +212,11 @@
                  (let [{:keys [op args]} (:matches handler)]
                    (and (= op (:op frame))
                         (submap? (:args frame) args)))))
-       (run! #((:fn %) frame conn))))
+       (run! #(try
+                ((:fn %) frame conn)
+                (catch Exception e
+                  (binding [*out* *err*]
+                    (println (str "Error running handler: " e))))))))
 
 (defn start
   [{:keys [reader ^ExecutorService executor frame-shapes] :as conn}]

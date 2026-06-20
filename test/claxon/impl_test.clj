@@ -303,6 +303,14 @@
   (let [log (atom [])]
     [log (handler op args (fn [frame conn] (swap! log conj [frame conn])))]))
 
+(defn capture-out-err
+  [thunk]
+  (let [out (java.io.StringWriter.)
+        err (java.io.StringWriter.)
+        result (binding [*out* out *err* err]
+                 (thunk))]
+    {:result result :out (str out) :err (str err)}))
+
 (deftest dispatch-calls-matching-handler-by-op
   (let [[log h] (recording-handler "PING" nil)
         frame {:op "PING"}]
@@ -426,19 +434,65 @@
     (impl/dispatch {:op "PING"} [h] conn)
     (is (= "PONG\r\n" (str sw)))))
 
-(deftest dispatch-with-bare-writer-as-conn-does-not-satisfy-snd
+(deftest dispatch-with-bare-writer-as-conn-no-longer-crashes-dispatch
   (let [sw (java.io.StringWriter.)
         bw (java.io.BufferedWriter. sw)
-        h (handler "PING" nil (fn [_ conn] (impl/snd conn "PONG")))]
-    (is (thrown? Exception
-                 (impl/dispatch {:op "PING"} [h] bw)))))
+        h (handler "PING" nil (fn [_ conn] (impl/snd conn "PONG")))
+        {:keys [result err]} (capture-out-err #(impl/dispatch {:op "PING"} [h] bw))]
+    (is (nil? result))
+    (is (= "" (str sw)))
+    (is (re-find #"Error running handler" err))))
 
-(deftest dispatch-one-handler-throwing-still-runs-via-run!-but-aborts-remaining
+(deftest dispatch-handler-exception-is-caught-and-does-not-propagate
+  (let [h (handler "PING" nil (fn [_ _] (throw (ex-info "boom" {}))))
+        {:keys [result]} (capture-out-err #(impl/dispatch {:op "PING"} [h] :the-conn))]
+    (is (nil? result))))
+
+(deftest dispatch-handler-exception-is-logged-to-stderr-not-stdout
+  (let [h (handler "PING" nil (fn [_ _] (throw (ex-info "boom" {}))))
+        {:keys [out err]} (capture-out-err #(impl/dispatch {:op "PING"} [h] :the-conn))]
+    (is (= "" out))
+    (is (re-find #"Error running handler" err))))
+
+(deftest dispatch-error-log-message-mentions-the-exception
+  (let [h (handler "PING" nil (fn [_ _] (throw (ex-info "boom" {}))))
+        {:keys [err]} (capture-out-err #(impl/dispatch {:op "PING"} [h] :the-conn))]
+    (is (re-find #"boom" err))))
+
+(deftest dispatch-one-handler-throwing-does-not-prevent-other-handlers-running
   (let [ran (atom [])
         h1 (handler "PING" nil (fn [_ _] (swap! ran conj :h1) (throw (ex-info "boom" {}))))
-        h2 (handler "PING" nil (fn [_ _] (swap! ran conj :h2)))]
-    (is (thrown? Exception (impl/dispatch {:op "PING"} [h1 h2] :the-conn)))
-    (is (= [:h1] @ran))))
+        h2 (handler "PING" nil (fn [_ _] (swap! ran conj :h2)))
+        {:keys [result]} (capture-out-err #(impl/dispatch {:op "PING"} [h1 h2] :the-conn))]
+    (is (nil? result))
+    (is (= [:h1 :h2] @ran))))
+
+(deftest dispatch-handler-throwing-in-the-middle-still-runs-handlers-before-and-after
+  (let [ran (atom [])
+        h1 (handler "PING" nil (fn [_ _] (swap! ran conj :h1)))
+        h2 (handler "PING" nil (fn [_ _] (swap! ran conj :h2) (throw (ex-info "boom" {}))))
+        h3 (handler "PING" nil (fn [_ _] (swap! ran conj :h3)))]
+    (capture-out-err #(impl/dispatch {:op "PING"} [h1 h2 h3] :the-conn))
+    (is (= [:h1 :h2 :h3] @ran))))
+
+(deftest dispatch-all-handlers-throwing-still-returns-nil-without-throwing
+  (let [h1 (handler "PING" nil (fn [_ _] (throw (ex-info "first" {}))))
+        h2 (handler "PING" nil (fn [_ _] (throw (ex-info "second" {}))))
+        {:keys [result]} (capture-out-err #(impl/dispatch {:op "PING"} [h1 h2] :the-conn))]
+    (is (nil? result))))
+
+(deftest dispatch-all-handlers-throwing-logs-one-line-per-failure
+  (let [h1 (handler "PING" nil (fn [_ _] (throw (ex-info "first" {}))))
+        h2 (handler "PING" nil (fn [_ _] (throw (ex-info "second" {}))))
+        {:keys [err]} (capture-out-err #(impl/dispatch {:op "PING"} [h1 h2] :the-conn))]
+    (is (re-find #"first" err))
+    (is (re-find #"second" err))))
+
+(deftest dispatch-non-throwing-handler-produces-no-stderr-output
+  (let [[_ h] (recording-handler "PING" nil)
+        {:keys [out err]} (capture-out-err #(impl/dispatch {:op "PING"} [h] :the-conn))]
+    (is (= "" out))
+    (is (= "" err))))
 
 (deftest dispatch-matches-op-only-frame-with-no-args-key
   (let [[log h] (recording-handler "+OK" nil)
