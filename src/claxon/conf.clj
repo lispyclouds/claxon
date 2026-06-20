@@ -1,6 +1,6 @@
 (ns claxon.conf
   (:require
-   [claxon.impl :as i])
+   [claxon.impl.write :as iw])
   (:import
    [java.util.concurrent Executors]))
 
@@ -9,6 +9,7 @@
   {:claxon/urls ["nats://localhost:4222"]
    :claxon/timeout-ms 2000
    :claxon/executor (Executors/newVirtualThreadPerTaskExecutor)
+   :claxon/handlers {{:op "PING"} (fn [_ conn] (iw/snd conn "PONG" nil nil))}
    :claxon/frame-shapes {"INFO" {:args [{:name :info :type :json}]}
                          "CONNECT" {:args [{:name :opts :type :json}]}
                          "PUB" {:args [{:name :subject :type :str}
@@ -41,5 +42,4 @@
                          "PING" {}
                          "PONG" {}
                          "+OK" {}
-                         "-ERR" {:args [{:name :msg :type :str}]}}
-   :claxon/handlers {{:op "PING"} (fn [_ conn] (i/snd conn "PONG"))}})
+                         "-ERR" {:args [{:name :msg :type :str}]}}})

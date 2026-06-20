@@ -1,55 +1,10 @@
-(ns claxon.impl
+(ns claxon.impl.read
   (:require
-   #?(:bb [cheshire.core :as json]
-      :clj [clojure.data.json :as json])
+   [claxon.impl.common :as ic]
    [clojure.string :as str])
   (:import
-   [java.io
-    ByteArrayOutputStream
-    EOFException
-    InputStream
-    Writer]
-   [java.net URI]
+   [java.io ByteArrayOutputStream EOFException InputStream]
    [java.util.concurrent ExecutorService]))
-
-(def read-json #?(:bb json/parse-string :clj json/read-str))
-(def write-json #?(:bb json/generate-string :clj json/write-str))
-(defonce conn-ids (atom 0))
-(defonce handlers (atom [])) ; TODO: Optimise
-
-(defn parse-nats-url
-  [url]
-  (let [uri (URI. url)
-        supported-schemes #{"nats"}
-        scheme (.getScheme uri)
-        _ (when (not (contains? supported-schemes scheme))
-            (throw (IllegalArgumentException. (str "Unsupported scheme: " url))))
-        host  (.getHost uri)
-        port  (let [p (.getPort uri)]
-                (if (pos? p) p 4222))
-        user-info (.getUserInfo uri)
-        [user password token]
-        (cond
-          (nil? user-info)
-          [nil nil nil]
-
-          (str/includes? user-info ":")
-          (let [[u p] (str/split user-info #":" 2)]
-            [u p nil])
-          :else [user-info nil user-info])]
-    {:scheme scheme
-     :host host
-     :port port
-     :user user
-     :password password
-     :token token}))
-
-(defn snd
-  ([conn op]
-   (snd conn op nil))
-  ([{:keys [^Writer writer]} op msg]
-   (.write writer (str op (if msg (str " " msg) "") "\r\n"))
-   (.flush writer)))
 
 (defn read-all
   [in]
@@ -61,8 +16,8 @@
           (throw (EOFException. "socket closed mid-line"))
 
           (and (= prev 13) (= b 10))
-          (let [bytes (.toByteArray buf)]
-            (String. bytes 0 (dec (alength bytes)) "UTF-8"))
+          (let [^bytes line-bytes (.toByteArray buf)]
+            (String. line-bytes 0 (dec (alength line-bytes)) "UTF-8"))
 
           :else
           (do
@@ -124,7 +79,7 @@
     (if (= 1 (count arg-specs))
       (let [{:keys [name type]} (first arg-specs)]
         {name (case type
-                :json (read-json rest-line)
+                :json (ic/read-json rest-line)
                 rest-line)})
       (parse-tokenized-args arg-specs (str/split rest-line #" +")))))
 
@@ -134,7 +89,7 @@
         [version & lines] (str/split s #"\r\n")
         [_ status desc] (str/split version #" " 3)
         headers (reduce (fn [m line]
-                          (let [[k v] (str/split line #":")]
+                          (let [[k v] (str/split line #":" 2)]
                             (if (and k v)
                               (update m k (fnil conj []) (str/trim v))
                               m)))
@@ -198,38 +153,11 @@
         args (assoc :args args)
         payloads (merge payloads)))))
 
-(defn submap?
-  [super sub]
-  (every? (fn [[k v]]
-            (and (contains? super k)
-                 (= v (get super k))))
-          sub))
-
-(defn dispatch
-  [frame handlers conn]
-  (->> handlers
-       (filter (fn [handler]
-                 (let [{:keys [op args]} (:matches handler)]
-                   (and (= op (:op frame))
-                        (submap? (:args frame) args)))))
-       (run! #(try
-                ((:fn %) frame conn)
-                (catch Exception e
-                  (binding [*out* *err*]
-                    (println (str "Error running handler: " e))))))))
-
 (defn start
   [{:keys [reader ^ExecutorService executor frame-shapes] :as conn}]
   (.submit executor
            ^Runnable
            #(loop []
               (let [frame (read-frame reader frame-shapes)]
-                (dispatch frame @handlers conn))
+                (ic/dispatch frame @ic/handlers conn))
               (recur))))
-
-(comment
-  (set! *warn-on-reflection* true)
-
-  (submap? nil {:foo :bar})
-
-  (parse-nats-url "nats://foo"))
