@@ -223,3 +223,235 @@
     (let [parsed (impl/parse-nats-url "nats://localhost:4222?foo=bar")]
       (is (= "localhost" (:host parsed)))
       (is (= 4222 (:port parsed))))))
+
+(deftest nil-sub-is-always-true
+  (testing "an empty/absent requirement matches anything, including nil super"
+    (is (true? (impl/submap? {:a 1} nil)))
+    (is (true? (impl/submap? {} nil)))
+    (is (true? (impl/submap? nil nil)))))
+
+(deftest empty-map-sub-is-always-true
+  (is (true? (impl/submap? {:a 1} {})))
+  (is (true? (impl/submap? nil {}))))
+
+(deftest nil-super-with-non-empty-sub-is-false
+  (is (false? (impl/submap? nil {:a 1}))))
+
+(deftest identical-maps-match
+  (is (true? (impl/submap? {:a 1 :b 2} {:a 1 :b 2}))))
+
+(deftest sub-is-strict-subset-of-super
+  (is (true? (impl/submap? {:a 1 :b 2 :c 3} {:a 1}))))
+
+(deftest sub-with-multiple-keys-all-present-and-equal
+  (is (true? (impl/submap? {:a 1 :b 2 :c 3} {:a 1 :c 3}))))
+
+(deftest super-missing-a-key-sub-requires-is-false
+  (is (false? (impl/submap? {:a 1} {:a 1 :b 2}))))
+
+(deftest differing-value-for-shared-key-is-false
+  (is (false? (impl/submap? {:a 1} {:a 2}))))
+
+(deftest one-matching-one-mismatching-key-is-false
+  (is (false? (impl/submap? {:a 1 :b 99} {:a 1 :b 2})))
+  (is (false? (impl/submap? {:a 99 :b 2} {:a 1 :b 2}))))
+
+(deftest missing-key-in-super-is-false-even-if-required-value-is-nil
+  (is (false? (impl/submap? {:a 1} {:b nil}))))
+
+(deftest key-explicitly-mapped-to-nil-in-super-matches-nil-requirement
+  (is (true? (impl/submap? {:a 1 :b nil} {:b nil}))))
+
+(deftest key-explicitly-mapped-to-nil-in-super-fails-non-nil-requirement
+  (is (false? (impl/submap? {:a 1 :b nil} {:b 2}))))
+
+(deftest equal-string-values-match
+  (is (true? (impl/submap? {:subject "foo.bar"} {:subject "foo.bar"}))))
+
+(deftest equal-nested-collection-values-match
+  (is (true? (impl/submap? {:headers {"X-Id" ["1"]}} {:headers {"X-Id" ["1"]}}))))
+
+(deftest unequal-nested-collection-values-fail
+  (is (false? (impl/submap? {:headers {"X-Id" ["1"]}} {:headers {"X-Id" ["2"]}}))))
+
+(deftest equal-vector-values-match
+  (is (true? (impl/submap? {:tags [:a :b]} {:tags [:a :b]}))))
+
+(deftest key-order-in-sub-does-not-matter
+  (is (true? (impl/submap? {:a 1 :b 2 :c 3} {:c 3 :a 1})))
+  (is (true? (impl/submap? {:a 1 :b 2 :c 3} {:a 1 :c 3}))))
+
+(deftest submap-is-not-symmetric
+  (is (true? (impl/submap? {:a 1 :b 2} {:a 1})))
+  (is (false? (impl/submap? {:a 1} {:a 1 :b 2}))))
+
+(deftest mirrors-ping-handler-shape-matching-any-args
+  (is (true? (impl/submap? nil nil)))
+  (is (true? (impl/submap? {:subject "x"} nil))))
+
+(deftest mirrors-msg-handler-shape-requiring-specific-subject
+  (is (true? (impl/submap? {:subject "foo.bar" :sid "1"} {:subject "foo.bar"})))
+  (is (false? (impl/submap? {:subject "other" :sid "1"} {:subject "foo.bar"})))
+  (is (false? (impl/submap? {:sid "1"} {:subject "foo.bar"}))))
+
+(defn handler
+  [op args f]
+  {:conn 1 :fn f :matches {:op op :args args}})
+
+(defn recording-handler
+  [op args]
+  (let [log (atom [])]
+    [log (handler op args (fn [frame conn] (swap! log conj [frame conn])))]))
+
+(deftest dispatch-calls-matching-handler-by-op
+  (let [[log h] (recording-handler "PING" nil)
+        frame {:op "PING"}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= [[frame :the-conn]] @log))))
+
+(deftest dispatch-no-match-on-different-op
+  (let [[log h] (recording-handler "PING" nil)
+        frame {:op "PONG"}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= [] @log))))
+
+(deftest dispatch-no-handlers-is-a-no-op
+  (is (nil? (impl/dispatch {:op "PING"} [] :the-conn)))
+  (is (nil? (impl/dispatch {:op "PING"} nil :the-conn))))
+
+(deftest dispatch-no-match-does-not-throw
+  (let [[_ h] (recording-handler "PING" nil)]
+    (is (nil? (impl/dispatch {:op "MSG"} [h] :the-conn)))))
+
+(deftest dispatch-matches-when-handler-args-nil-regardless-of-frame-args
+  (let [[log h] (recording-handler "PING" nil)
+        frame {:op "PING" :args {:subject "foo"}}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 1 (count @log)))))
+
+(deftest dispatch-matches-when-handler-args-is-subset-of-frame-args
+  (let [[log h] (recording-handler "MSG" {:subject "foo.bar"})
+        frame {:op "MSG" :args {:subject "foo.bar" :sid "1"}}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 1 (count @log)))))
+
+(deftest dispatch-no-match-when-frame-missing-required-arg-key
+  (let [[log h] (recording-handler "MSG" {:subject "foo.bar"})
+        frame {:op "MSG" :args {:sid "1"}}] ; no :subject at all
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 0 (count @log)))))
+
+(deftest dispatch-no-match-when-arg-value-differs
+  (let [[log h] (recording-handler "MSG" {:subject "foo.bar"})
+        frame {:op "MSG" :args {:subject "other.subject"}}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 0 (count @log)))))
+
+(deftest dispatch-no-match-when-frame-has-no-args-but-handler-requires-some
+  (let [[log h] (recording-handler "MSG" {:subject "foo.bar"})
+        frame {:op "MSG"}] ; :args missing entirely on frame
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 0 (count @log)))))
+
+(deftest dispatch-invokes-every-matching-handler-not-just-first
+  (let [[log1 h1] (recording-handler "PING" nil)
+        [log2 h2] (recording-handler "PING" nil)
+        frame {:op "PING"}]
+    (impl/dispatch frame [h1 h2] :the-conn)
+    (is (= 1 (count @log1)))
+    (is (= 1 (count @log2)))))
+
+(deftest dispatch-invokes-matching-handlers-in-given-order
+  (let [order (atom [])
+        h1 (handler "PING" nil (fn [_ _] (swap! order conj :h1)))
+        h2 (handler "PING" nil (fn [_ _] (swap! order conj :h2)))
+        h3 (handler "PING" nil (fn [_ _] (swap! order conj :h3)))]
+    (impl/dispatch {:op "PING"} [h1 h2 h3] :the-conn)
+    (is (= [:h1 :h2 :h3] @order))))
+
+(deftest dispatch-skips-non-matching-and-invokes-all-matching
+  (let [[log-other h-other] (recording-handler "PONG" nil)
+        [log1 h1] (recording-handler "PING" nil)
+        [log2 h2] (recording-handler "PING" nil)
+        frame {:op "PING"}]
+    (impl/dispatch frame [h-other h1 h2] :the-conn)
+    (is (= 0 (count @log-other)))
+    (is (= 1 (count @log1)))
+    (is (= 1 (count @log2)))))
+
+(deftest dispatch-handlers-for-other-ops-dont-interfere
+  (let [[log-ping h-ping] (recording-handler "PING" nil)
+        [log-msg h-msg] (recording-handler "MSG" {:subject "x"})
+        frame {:op "PING"}]
+    (impl/dispatch frame [h-msg h-ping] :the-conn)
+    (is (= 0 (count @log-msg)))
+    (is (= 1 (count @log-ping)))))
+
+(deftest dispatch-with-mixed-args-only-matching-ones-fire
+  (let [[log-x h-x] (recording-handler "MSG" {:subject "x"})
+        [log-y h-y] (recording-handler "MSG" {:subject "y"})
+        [log-any h-any] (recording-handler "MSG" nil)
+        frame {:op "MSG" :args {:subject "x"}}]
+    (impl/dispatch frame [h-x h-y h-any] :the-conn)
+    (is (= 1 (count @log-x)))
+    (is (= 0 (count @log-y)))
+    (is (= 1 (count @log-any)))))
+
+(deftest dispatch-forwards-conn-unmodified-to-handler
+  (let [[log h] (recording-handler "PING" nil)
+        conn {:id 1 :writer :a-writer :reader :a-reader}]
+    (impl/dispatch {:op "PING"} [h] conn)
+    (is (= conn (second (first @log))))))
+
+(deftest dispatch-forwards-conn-by-identity-not-just-equality
+  (let [received (atom nil)
+        h (handler "PING" nil (fn [_ conn] (reset! received conn)))
+        conn {:id 1 :writer :a-writer}]
+    (impl/dispatch {:op "PING"} [h] conn)
+    (is (identical? conn @received))))
+
+(deftest dispatch-forwards-same-conn-to-every-matching-handler
+  (let [received (atom [])
+        h1 (handler "PING" nil (fn [_ conn] (swap! received conj conn)))
+        h2 (handler "PING" nil (fn [_ conn] (swap! received conj conn)))
+        conn {:id 1 :writer :a-writer}]
+    (impl/dispatch {:op "PING"} [h1 h2] conn)
+    (is (every? #(identical? conn %) @received))))
+
+(deftest snd-works-on-the-conn-dispatch-forwards
+  (let [sw (java.io.StringWriter.)
+        bw (java.io.BufferedWriter. sw)
+        conn {:writer bw}
+        h (handler "PING" nil (fn [_ conn] (impl/snd conn "PONG")))]
+    (impl/dispatch {:op "PING"} [h] conn)
+    (is (= "PONG\r\n" (str sw)))))
+
+(deftest dispatch-with-bare-writer-as-conn-does-not-satisfy-snd
+  (let [sw (java.io.StringWriter.)
+        bw (java.io.BufferedWriter. sw)
+        h (handler "PING" nil (fn [_ conn] (impl/snd conn "PONG")))]
+    (is (thrown? Exception
+                 (impl/dispatch {:op "PING"} [h] bw)))))
+
+(deftest dispatch-one-handler-throwing-still-runs-via-run!-but-aborts-remaining
+  (let [ran (atom [])
+        h1 (handler "PING" nil (fn [_ _] (swap! ran conj :h1) (throw (ex-info "boom" {}))))
+        h2 (handler "PING" nil (fn [_ _] (swap! ran conj :h2)))]
+    (is (thrown? Exception (impl/dispatch {:op "PING"} [h1 h2] :the-conn)))
+    (is (= [:h1] @ran))))
+
+(deftest dispatch-matches-op-only-frame-with-no-args-key
+  (let [[log h] (recording-handler "+OK" nil)
+        frame {:op "+OK"}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= 1 (count @log)))))
+
+(deftest dispatch-passes-full-frame-including-payloads-to-handler
+  (let [[log h] (recording-handler "MSG" {:subject "x"})
+        frame {:op "MSG" :args {:subject "x" :sid "1"} :body (byte-array [1 2 3])}]
+    (impl/dispatch frame [h] :the-conn)
+    (is (= frame (first (first @log))))))
+
+(deftest dispatch-returns-nil
+  (let [[_ h] (recording-handler "PING" nil)]
+    (is (nil? (impl/dispatch {:op "PING"} [h] :the-conn)))))

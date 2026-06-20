@@ -207,13 +207,12 @@
 
 (defn dispatch
   [frame handlers conn]
-  (let [matched (filter (fn [handler]
-                          (let [{:keys [op args]} (:matches handler)]
-                            (and (= op (:op frame))
-                                 (submap? (:args frame) args))))
-                        handlers)]
-    (when-let [h (first matched)]
-      ((:fn h) frame conn))))
+  (->> handlers
+       (filter (fn [handler]
+                 (let [{:keys [op args]} (:matches handler)]
+                   (and (= op (:op frame))
+                        (submap? (:args frame) args)))))
+       (run! #((:fn %) frame conn))))
 
 (defn start
   [{:keys [reader ^ExecutorService executor frame-shapes] :as conn}]
