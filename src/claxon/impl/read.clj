@@ -137,9 +137,10 @@
   [in shapes]
   (let [line (read-all in)
         sp (String/.indexOf line " ")
-        op (if (neg? sp)
-             line
-             (subs line 0 sp))
+        op (str/upper-case
+            (if (neg? sp)
+              line
+              (subs line 0 sp)))
         rest-line (if (neg? sp)
                     ""
                     (subs line (inc sp)))

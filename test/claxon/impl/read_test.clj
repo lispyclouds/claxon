@@ -403,6 +403,40 @@
   (is (thrown? clojure.lang.ExceptionInfo
                (ir/read-frame (->stream "BOGUS foo\r\n") default-shapes))))
 
+(deftest read-frame-op-is-case-insensitive-no-args
+  (testing "the NATS protocol specifies that op names are case-insensitive
+            (e.g. 'sub foo 1' and 'SUB foo 1' are equivalent); a lowercase
+            op must still resolve against the (uppercase) frame-shapes table"
+    (is (= {:op "PING"} (ir/read-frame (->stream "ping\r\n") default-shapes)))
+    (is (= {:op "PONG"} (ir/read-frame (->stream "Pong\r\n") default-shapes)))))
+
+(deftest read-frame-op-is-case-insensitive-with-args
+  (is (= {:op "SUB" :args {:subject "FOO" :sid "1"}}
+         (ir/read-frame (->stream "sub FOO 1\r\n") default-shapes)))
+  (is (= {:op "UNSUB" :args {:sid "1" :max-msgs 5}}
+         (ir/read-frame (->stream "Unsub 1 5\r\n") default-shapes))))
+
+(deftest read-frame-op-is-case-insensitive-with-payload
+  (is (= "PUB" (:op (ir/read-frame (->stream "pub FOO 11\r\nHello NATS!\r\n") default-shapes))))
+  (let [frame (ir/read-frame (->stream "Pub FOO 11\r\nHello NATS!\r\n") default-shapes)]
+    (is (= {:subject "FOO" :bytes 11} (:args frame)))
+    (is (= "Hello NATS!" (String. ^bytes (:body frame) "UTF-8")))))
+
+(deftest read-frame-op-case-insensitive-for-symbolic-ops
+  (testing "+OK and -ERR have non-alphabetic leading characters, which upper-case
+            must leave untouched while still folding the alphabetic part"
+    (is (= {:op "+OK"} (ir/read-frame (->stream "+ok\r\n") default-shapes)))
+    (is (= {:op "-ERR" :args {:msg "boom"}}
+           (ir/read-frame (->stream "-err boom\r\n") default-shapes)))))
+
+(deftest read-frame-returned-op-is-normalized-for-handler-matching
+  (testing "the :op in the returned frame is the normalized (uppercase) form,
+            not whatever case the server actually sent -- this matters because
+            claxon.impl.common/dispatch matches handlers using exact string
+            equality against :op, and handlers are registered with uppercase
+            op names (see claxon.conf/defaults)"
+    (is (= "PING" (:op (ir/read-frame (->stream "ping\r\n") default-shapes))))))
+
 (deftest read-frame-connect
   (let [line "CONNECT {\"verbose\":false,\"pedantic\":false,\"lang\":\"clojure\"}\r\n"
         frame (ir/read-frame (->stream line) default-shapes)]
