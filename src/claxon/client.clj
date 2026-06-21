@@ -7,7 +7,7 @@
    [claxon.impl.write :as iw])
   (:import
    [java.io BufferedInputStream BufferedOutputStream]
-   [java.net Socket]
+   [java.net InetSocketAddress Socket]
    [java.util.concurrent ExecutorService]))
 
 (defn add-handler
@@ -40,8 +40,7 @@
    (connect {}))
   ([opts]
    (let [opts (merge (conf/defaults) opts)
-         {:keys [tls
-                 claxon/urls
+         {:keys [claxon/urls
                  claxon/timeout-ms
                  claxon/executor
                  claxon/handlers
@@ -51,16 +50,12 @@
          (->> urls
               (map ic/parse-nats-url)
               (shuffle)
-              (some (fn [{:keys [host port]}]
+              (some (fn [{:keys [^String host ^Integer port]}]
                       (try
-                        (let [socket (sock/connect {:host host
-                                                    :port port
-                                                    :tls tls
-                                                    :verify verify-tls
-                                                    :timeout timeout-ms})]
-                          {:socket socket
-                           :host host
-                           :port port})
+                        {:socket (doto (Socket.)
+                                   (.connect (InetSocketAddress. host port) timeout-ms))
+                         :host host
+                         :port port}
                         (catch Exception _ false)))))
          _ (when-not socket
              (throw (ex-info "Cannot connect to any of the urls" {:urls urls})))
@@ -80,25 +75,19 @@
                   (ir/read-frame frame-shapes)
                   :args
                   :info)
-         conn (if (and (get info "tls_available")
-                       (get info "tls_required"))
-                (if tls
-                  conn
-                  (do
-                    (Socket/.close (:socket conn))
-                    (let [new-sock (sock/connect {:host host
-                                                  :port port
-                                                  :tls true
-                                                  :verify verify-tls
-                                                  :timeout timeout-ms})]
-                      (assoc conn
-                             :socket new-sock
-                             :in (-> new-sock
-                                     .getInputStream
-                                     BufferedInputStream.)
-                             :out (-> new-sock
-                                      .getOutputStream
-                                      BufferedOutputStream.)))))
+         conn (if (get info "tls_required")
+                (let [ssock (sock/->tls {:socket socket
+                                         :host host
+                                         :port port
+                                         :verify verify-tls})]
+                  (assoc conn
+                         :socket ssock
+                         :in (-> ssock
+                                 .getInputStream
+                                 BufferedInputStream.)
+                         :out (-> ssock
+                                  .getOutputStream
+                                  BufferedOutputStream.)))
                 conn)]
      (run! (fn [[{:keys [op args]} f]]
              (add-handler conn f {:op op :args args}))
@@ -126,6 +115,6 @@
 (comment
   (set! *warn-on-reflection* true)
 
-  (def conn (connect))
+  (def conn (connect {:tls true :claxon/verify-tls false}))
 
   (close conn))
