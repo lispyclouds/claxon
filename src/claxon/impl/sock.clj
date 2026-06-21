@@ -4,6 +4,7 @@
    [java.security.cert X509Certificate]
    [javax.net.ssl
     SSLContext
+    SSLSocket
     SSLSocketFactory
     TrustManager
     X509TrustManager]
@@ -24,9 +25,16 @@
   [{:keys [^String host ^Integer port tls verify timeout]}]
   (let [socket (if-not tls
                  (Socket.)
-                 (.createSocket
+                 (SSLSocketFactory/.createSocket
                   (if verify
                     (SSLSocketFactory/getDefault)
                     (SSLContext/.getSocketFactory (trust-all-context)))))]
+    (when (and tls verify)
+      (let [params (SSLSocket/.getSSLParameters socket)]
+        (.setEndpointIdentificationAlgorithm params "HTTPS")
+        (SSLSocket/.setSSLParameters socket params)))
     (.connect socket (InetSocketAddress. host port) timeout)
     socket))
+
+(comment
+  (set! *warn-on-reflection* true))

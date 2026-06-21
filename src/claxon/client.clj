@@ -11,6 +11,8 @@
    [java.util.concurrent ExecutorService]))
 
 (defn add-handler
+  "Registers handler to be called on conn whenever an incoming frame matches op and args (a submap match).
+  Returns a handler id, usable with remove-handler."
   [conn handler {:keys [op args]}]
   (let [id (swap! ic/handler-ids inc)]
     (swap! ic/handlers
@@ -22,14 +24,18 @@
     id))
 
 (defn remove-handler
+  "Unregisters the handler with the given id, as returned by add-handler."
   [id]
   (swap! ic/handlers (fn [hs] (remove #(= id (:id %)) hs))))
 
 (defn invoke
+  "Sends a frame ({:op ... :args ... :payloads ...}) to the server over conn."
   [conn {:keys [op args payloads]}]
   (iw/snd conn op args payloads))
 
 (defn connect
+  "Opens a connection to a NATS server and performs the INFO/CONNECT handshake, upgrading to TLS first if the server requires it. opts is merged over claxon.conf/defaults.
+  Returns a conn map to be passed to every other function in this namespace."
   ([]
    (connect {}))
   ([opts]
@@ -111,6 +117,7 @@
      conn)))
 
 (defn close
+  "Closes conn: deregisters its handlers, shuts down its executor, and closes the underlying socket."
   [{:keys [socket executor id]}]
   (swap! ic/handlers (fn [h] (vec (remove #(= (:conn %) id) h))))
   (ExecutorService/.shutdown executor)
