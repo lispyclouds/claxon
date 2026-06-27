@@ -21,18 +21,20 @@
   ([conn handler err-handler {:keys [op args]}]
    (let [id (swap! ic/handler-ids inc)]
      (swap! ic/handlers
-            conj
-            {:id id
-             :conn (:id conn)
-             :fn handler
+            assoc-in
+            [(:id conn) op id]
+            {:fn handler
              :efn err-handler
-             :matches {:op op :args args}})
+             :matches {:args args}})
      id)))
 
 (defn remove-handler
   "Unregisters the handler with the given id, as returned by add-handler."
   [id]
-  (swap! ic/handlers (fn [hs] (remove #(= id (:id %)) hs))))
+  (doseq [[cid ops] @ic/handlers ;; TODO: Maybe O(1) deletions later
+          [op hs] ops
+          :when (contains? hs id)]
+    (swap! ic/handlers update-in [cid op] dissoc id)))
 
 (defn invoke
   "Sends a frame ({:op ... :args ... :payloads ...}) to the server over conn."
@@ -115,12 +117,14 @@
 (defn close
   "Closes conn: deregisters its handlers, shuts down its executor, and closes the underlying socket."
   [{:keys [socket executor id]}]
-  (swap! ic/handlers (fn [h] (vec (remove #(= (:conn %) id) h))))
+  (swap! ic/handlers dissoc id)
   (ExecutorService/.shutdown executor)
   (Socket/.close socket))
 
 (comment
   (set! *warn-on-reflection* true)
+
+  (deref ic/handlers)
 
   (def conn (connect {:claxon/verify-tls false}))
 

@@ -106,10 +106,10 @@
 (deftest dispatch-invokes-matching-handlers-only
   (let [conn-a {:id "conn-a" :executor (->executor)}
         calls (atom [])
-        handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                   :fn (fn [frame _conn] (swap! calls conj [:ping frame]))}
-                  {:conn "conn-a" :matches {:op "MSG" :args nil}
-                   :fn (fn [frame _conn] (swap! calls conj [:msg frame]))}]]
+        handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                       :fn (fn [frame _conn] (swap! calls conj [:ping frame]))}}
+                            "MSG" {2 {:matches {:args nil}
+                                      :fn (fn [frame _conn] (swap! calls conj [:msg frame]))}}}}]
     (sync-dispatch! {:op "PING"} handlers conn-a)
     (is (= [[:ping {:op "PING"}]] @calls))))
 
@@ -117,10 +117,10 @@
   (testing "more than one handler can match the same frame; all run"
     (let [conn-a {:id "conn-a" :executor (->executor)}
           calls (atom 0)
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls inc))}
-                    {:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls inc))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls inc))}
+                                      2 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls inc))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-a)
       (is (= 2 @calls)))))
 
@@ -128,15 +128,15 @@
   (testing "handlers can be filtered further by a submap of :args"
     (let [conn-a {:id "conn-a" :executor (->executor)}
           calls (atom [])
-          handlers [{:conn "conn-a" :matches {:op "MSG" :args {:subject "FOO"}}
-                     :fn (fn [frame _] (swap! calls conj frame))}]]
+          handlers {"conn-a" {"MSG" {1 {:matches {:args {:subject "FOO"}}
+                                        :fn (fn [frame _] (swap! calls conj frame))}}}}]
       (sync-dispatch! {:op "MSG" :args {:subject "FOO" :sid "1"}} handlers conn-a)
       (sync-dispatch! {:op "MSG" :args {:subject "BAR" :sid "1"}} handlers conn-a)
       (is (= 1 (count @calls)))
       (is (= "FOO" (get-in (first @calls) [:args :subject]))))))
 
 (deftest dispatch-no-matching-handlers-is-a-noop
-  (is (nil? (sync-dispatch! {:op "PING"} [] {:id "conn-a" :executor (->executor)}))))
+  (is (nil? (sync-dispatch! {:op "PING"} {} {:id "conn-a" :executor (->executor)}))))
 
 (deftest dispatch-handler-exception-without-efn-is-swallowed
   (testing "an exception thrown by a handler with no :efn does not stop
@@ -144,10 +144,10 @@
             simply swallowed"
     (let [conn-a {:id "conn-a" :executor (->executor)}
           calls (atom [])
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (throw (ex-info "boom" {})))}
-                    {:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls conj :ran))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (throw (ex-info "boom" {})))}
+                                      2 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls conj :ran))}}}}]
       (is (nil? (sync-dispatch! {:op "PING"} handlers conn-a)))
       (is (= [:ran] @calls)))))
 
@@ -156,9 +156,9 @@
             when its :fn throws"
     (let [seen (atom nil)
           conn-a {:id "conn-a" :executor (->executor)}
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (throw (ex-info "boom" {})))
-                     :efn (fn [frame conn e] (reset! seen [frame conn e]))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (throw (ex-info "boom" {})))
+                                         :efn (fn [frame conn e] (reset! seen [frame conn e]))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-a)
       (let [[frame conn e] @seen]
         (is (= {:op "PING"} frame))
@@ -171,9 +171,9 @@
             -- as an alternative to the library doing any logging itself"
     (let [errors (atom [])
           conn-a {:id "conn-a" :executor (->executor)}
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (throw (ex-info "boom" {:detail 42})))
-                     :efn (fn [_ _ e] (swap! errors conj (ex-data e)))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (throw (ex-info "boom" {:detail 42})))
+                                         :efn (fn [_ _ e] (swap! errors conj (ex-data e)))}}}}]
       (binding [*err* (java.io.StringWriter.)]
         (sync-dispatch! {:op "PING"} handlers conn-a)
         (testing "nothing was written to *err* -- :efn took over entirely"
@@ -187,9 +187,9 @@
             around connect) still visible to :efn when it runs there"
     (let [conn-a {:id "conn-a" :executor (->executor)}
           captured (atom nil)
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (throw (ex-info "boom" {})))
-                     :efn (fn [_ _ _] (reset! captured *out*))}]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (throw (ex-info "boom" {})))
+                                         :efn (fn [_ _ _] (reset! captured *out*))}}}}
           custom-out (java.io.StringWriter.)]
       (binding [*out* custom-out]
         (sync-dispatch! {:op "PING"} handlers conn-a))
@@ -198,8 +198,8 @@
 (deftest dispatch-passes-conn-through-to-handler
   (let [conn-a {:id "conn-a" :extra :data :executor (->executor)}
         seen (atom nil)
-        handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                   :fn (fn [_ conn] (reset! seen conn))}]]
+        handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                       :fn (fn [_ conn] (reset! seen conn))}}}}]
     (sync-dispatch! {:op "PING"} handlers conn-a)
     (is (= conn-a @seen))))
 
@@ -210,8 +210,8 @@
             against conn-b, even when :op and :args both match"
     (let [conn-b {:id "conn-b" :executor (->executor)}
           calls (atom [])
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ conn] (swap! calls conj conn))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ conn] (swap! calls conj conn))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-b)
       (is (= [] @calls)))))
 
@@ -222,10 +222,10 @@
           conn-b {:id "conn-b" :executor (->executor)}
           calls-a (atom 0)
           calls-b (atom 0)
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls-a inc))}
-                    {:conn "conn-b" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls-b inc))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls-a inc))}}}
+                    "conn-b" {"PING" {2 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls-b inc))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-a)
       (is (= 1 @calls-a))
       (is (= 0 @calls-b))
@@ -234,34 +234,36 @@
       (is (= 1 @calls-b)))))
 
 (deftest dispatch-conn-id-mismatch-takes-priority-over-op-and-args-match
-  (testing "a wrong :conn excludes a handler even when both :op and :args
-            match exactly -- :conn is not just a tiebreaker, it's a hard filter"
+  (testing "a handler registered under a different conn id's slot is structurally
+            unreachable when dispatching for conn-b, even when :op and :args
+            both match -- the conn id is the outermost index, not just a filter"
     (let [conn-b {:id "conn-b" :executor (->executor)}
           calls (atom [])
-          handlers [{:conn "conn-a" :matches {:op "MSG" :args {:subject "FOO"}}
-                     :fn (fn [frame _] (swap! calls conj frame))}]]
+          handlers {"conn-a" {"MSG" {1 {:matches {:args {:subject "FOO"}}
+                                        :fn (fn [frame _] (swap! calls conj frame))}}}}]
       (sync-dispatch! {:op "MSG" :args {:subject "FOO" :sid "1"}} handlers conn-b)
       (is (= [] @calls)))))
 
 (deftest dispatch-nil-conn-id-does-not-match-a-real-connection
-  (testing "a handler with no :conn set (nil) does not leak into dispatch
+  (testing "handlers indexed under a nil conn id do not leak into dispatch
             for a connection that actually has an :id -- nil should not be
             treated as a wildcard"
     (let [conn-a {:id "conn-a" :executor (->executor)}
           calls (atom [])
-          handlers [{:matches {:op "PING" :args nil} ; no :conn key at all
-                     :fn (fn [_ _] (swap! calls conj :ran))}]]
+          handlers {nil {"PING" {1 {:matches {:args nil}
+                                    :fn (fn [_ _] (swap! calls conj :ran))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-a)
       (is (= [] @calls)))))
 
 (deftest dispatch-nil-conn-id-on-both-sides-still-matches
   (testing "the flip side of the above: if the connection itself has no :id
-            (nil) and the handler also has no :conn (nil), nil=nil so the
-            handler still matches -- this is the same coincidental case the
-            other tests deliberately avoid, named here so the boundary is explicit"
+            (nil) and the handler is indexed under a nil conn id, nil=nil so
+            the handler still matches -- this is the same coincidental case
+            the other tests deliberately avoid, named here so the boundary
+            is explicit"
     (let [calls (atom [])
-          handlers [{:matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (swap! calls conj :ran))}]]
+          handlers {nil {"PING" {1 {:matches {:args nil}
+                                    :fn (fn [_ _] (swap! calls conj :ran))}}}}]
       (sync-dispatch! {:op "PING"} handlers {:executor (->executor)})
       (is (= [:ran] @calls)))))
 
@@ -271,11 +273,36 @@
     (let [conn-a {:id "conn-a" :executor (->executor)}
           caller-thread (Thread/currentThread)
           handler-thread (atom nil)
-          handlers [{:conn "conn-a" :matches {:op "PING" :args nil}
-                     :fn (fn [_ _] (reset! handler-thread (Thread/currentThread)))}]]
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (reset! handler-thread (Thread/currentThread)))}}}}]
       (sync-dispatch! {:op "PING"} handlers conn-a)
       (is (some? @handler-thread))
       (is (not= caller-thread @handler-thread)))))
+
+;; --- op-as-index ------------------------------------------------------------
+
+(deftest dispatch-op-mismatch-is-a-structural-miss-not-a-filtered-one
+  (testing "a handler registered under a different op key in the index is
+            simply never looked up -- unlike the old vector+filter design,
+            there's no predicate comparing :op here to ever short-circuit"
+    (let [conn-a {:id "conn-a" :executor (->executor)}
+          calls (atom [])
+          handlers {"conn-a" {"MSG" {1 {:matches {:args nil}
+                                        :fn (fn [_ _] (swap! calls conj :ran))}}}}]
+      (sync-dispatch! {:op "PING"} handlers conn-a)
+      (is (= [] @calls)))))
+
+(deftest dispatch-only-consults-the-ops-bucket-matching-the-frame
+  (testing "handlers registered under sibling op keys for the same conn are
+            not even considered when dispatching a different op"
+    (let [conn-a {:id "conn-a" :executor (->executor)}
+          calls (atom [])
+          handlers {"conn-a" {"PING" {1 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls conj :ping))}}
+                              "PONG" {2 {:matches {:args nil}
+                                         :fn (fn [_ _] (swap! calls conj :pong))}}}}]
+      (sync-dispatch! {:op "PONG"} handlers conn-a)
+      (is (= [:pong] @calls)))))
 
 ;; ---------------------------------------------------------------------------
 ;; read-json / write-json round trip (platform-dependent impl, behaviour-tested)

@@ -11,7 +11,7 @@
 (def write-json #?(:bb json/generate-string :clj json/write-str))
 (defonce conn-ids (atom 0))
 (defonce handler-ids (atom 0))
-(defonce handlers (atom [])) ; TODO: Optimise better than O(n), inverted lookup via matches
+(defonce handlers (atom {})) ;; TODO: indexed on conn id -> op -> handlers, ENHANCE moar
 
 (defn parse-nats-url
   [url]
@@ -48,13 +48,15 @@
           sub))
 
 (defn dispatch
-  [frame handlers {:keys [^ExecutorService executor] :as conn}]
-  (->> handlers
-       (filter (fn [handler]
-                 (let [{:keys [op args]} (:matches handler)]
-                   (and (= (:id conn) (:conn handler))
-                        (= op (:op frame))
-                        (submap? (:args frame) args)))))
+  [{:keys [op] :as frame}
+   handlers
+   {:keys [^ExecutorService executor id] :as conn}]
+  (->> (get-in handlers [id op])
+       (vals)
+       (filter #(->> %
+                     :matches
+                     :args
+                     (submap? (:args frame))))
        (run! (fn [handler]
                (let [task (bound-fn [] ;; bound-fn captures scope before dispatching on a thread
                             (try
