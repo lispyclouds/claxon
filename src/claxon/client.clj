@@ -18,9 +18,9 @@
   Returns a handler id, usable with remove-handler."
   ([conn handler matches]
    (add-handler conn handler nil matches))
-  ([conn handler err-handler {:keys [op args]}]
-   (let [id (swap! ic/handler-ids inc)]
-     (swap! (:handlers conn)
+  ([{:keys [handlers handler-ids]} handler err-handler {:keys [op args]}]
+   (let [id (swap! handler-ids inc)]
+     (swap! handlers
             assoc-in
             [op id]
             {:fn handler
@@ -93,6 +93,7 @@
                :executor executor
                :frame-shapes frame-shapes
                :write-lock (ReentrantLock.)
+               :handler-ids (atom 0)
                :handlers (atom {})} ;; TODO: indexed on op -> hid -> handler, ENHANCE moar
          info (-> in
                   (ir/read-frame frame-shapes)
@@ -130,7 +131,8 @@
 
 (defn close
   "Closes conn: deregisters its handlers, shuts down its executor, and closes the underlying socket."
-  [{:keys [socket executor handlers]}]
+  [{:keys [socket executor handlers handler-ids]}]
+  (reset! handler-ids 0)
   (reset! handlers {})
   (ExecutorService/.shutdown executor)
   (Socket/.close socket))

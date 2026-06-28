@@ -11,8 +11,6 @@
 
 (def write-json #?(:bb json/generate-string :clj json/write-str))
 
-(defonce handler-ids (atom 0))
-
 (defn parse-nats-url
   [url]
   (let [uri (URI. url)

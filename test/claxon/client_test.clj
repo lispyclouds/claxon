@@ -1,22 +1,17 @@
 (ns claxon.client-test
   (:require
    [claxon.client :as client]
-   [claxon.impl.common :as ic]
-   [clojure.test :refer [deftest testing is use-fixtures]]))
+   [clojure.test :refer [deftest testing is]]))
 
 ;; ---------------------------------------------------------------------------
-;; fixtures
+;; helpers
 ;; ---------------------------------------------------------------------------
-
-(use-fixtures :each
-  (fn [run-test]
-    (reset! ic/handler-ids 0)
-    (run-test)))
 
 (defn ->conn
-  "Build a minimal conn with its own fresh handlers atom."
+  "Build a minimal conn with its own fresh handlers and handler-ids atoms."
   []
-  {:handlers (atom {})})
+  {:handlers (atom {})
+   :handler-ids (atom 0)})
 
 ;; ---------------------------------------------------------------------------
 ;; add-handler
@@ -44,16 +39,16 @@
     (is (= 2 id-2))
     (is (not= id-1 id-2))))
 
-(deftest add-handler-ids-are-shared-across-conns
-  (testing "handler-ids is still a single global counter, even though the
-            handlers themselves are stored per-conn -- so ids stay unique
-            across every conn, not just within one"
+(deftest add-handler-ids-are-only-unique-within-their-own-conn
+  (testing "handler-ids now lives on the conn itself (no more global counter),
+            so two different conns each start their own sequence from 1 --
+            ids are unique within a conn, not across every conn in the process"
     (let [conn-a (->conn)
           conn-b (->conn)
-          id-1 (client/add-handler conn-a (fn [_ _]) {:op "PING" :args nil})
-          id-2 (client/add-handler conn-b (fn [_ _]) {:op "PING" :args nil})]
-      (is (= 1 id-1))
-      (is (= 2 id-2)))))
+          id-a (client/add-handler conn-a (fn [_ _]) {:op "PING" :args nil})
+          id-b (client/add-handler conn-b (fn [_ _]) {:op "PING" :args nil})]
+      (is (= 1 id-a))
+      (is (= 1 id-b)))))
 
 (deftest add-handler-3-arity-defaults-err-handler-to-nil
   (testing "the 3-arity (conn handler matches) defers to the 4-arity with
@@ -91,8 +86,7 @@
           id-a (client/add-handler conn-a (fn [_ _]) {:op "PING" :args nil})
           id-b (client/add-handler conn-b (fn [_ _]) {:op "PING" :args nil})]
       (is (= #{id-a} (set (keys (get @(:handlers conn-a) "PING")))))
-      (is (= #{id-b} (set (keys (get @(:handlers conn-b) "PING")))))
-      (is (not= id-a id-b)))))
+      (is (= #{id-b} (set (keys (get @(:handlers conn-b) "PING"))))))))
 
 (deftest add-handler-multiple-handlers-coexist-on-the-same-conn-and-op
   (let [conn (->conn)
