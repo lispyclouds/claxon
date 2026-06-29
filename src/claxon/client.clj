@@ -14,6 +14,7 @@
 (defn add-handler
   "Registers handler to be called on conn whenever an incoming frame matches op and args (a submap match).
   Takes in an optional error-handler in case of uncaught exceptions in the handler.
+  Uncaught exceptions in the error-handler will be swallowed.
   The handler will be passed in the frame and conn, the err-handler the exception as well.
   Returns a handler id, usable with remove-handler."
   ([conn handler matches]
@@ -34,9 +35,11 @@
   ;; TODO: Maybe O(1) deletions later
   (swap! handlers
          #(reduce-kv (fn [acc op hs]
-                       (if (contains? hs id)
-                         (assoc acc op (dissoc hs id))
-                         (assoc acc op hs)))
+                       (assoc acc
+                              op
+                              (if (contains? hs id)
+                                (dissoc hs id)
+                                hs)))
                      {}
                      %))
   nil)
@@ -50,9 +53,9 @@
   (iw/snd conn op args payloads))
 
 (defn connect
-  "Opens a connection to a NATS server and performs the INFO/CONNECT handshake, upgrading to TLS first if the server requires it.
-  opts is merged over claxon.conf/defaults.
-  Returns a conn map to be passed to every other function in this namespace."
+  "Connects to a NATS server and performs the INFO/CONNECT handshake, upgrading to TLS if required.
+  opts are merged over claxon.conf/defaults.
+  Returns a conn map to be passed to other functions."
   ([]
    (connect {}))
   ([opts]
@@ -130,10 +133,8 @@
      conn)))
 
 (defn close
-  "Closes conn: deregisters its handlers, shuts down its executor, and closes the underlying socket."
-  [{:keys [socket executor handlers handler-ids]}]
-  (reset! handler-ids 0)
-  (reset! handlers {})
+  "Closes conn by cleaning up all underlying resources."
+  [{:keys [socket executor]}]
   (ExecutorService/.shutdown executor)
   (Socket/.close socket))
 

@@ -79,19 +79,19 @@ Opens a connection to a NATS server and performs the `INFO`/`CONNECT` handshake.
 
 `opts` is merged over `claxon.conf/defaults`. Any non `:claxon/` namespaced key passed (e.g. `:user`, `:pass`) is forwarded verbatim to the server.
 See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-protocol#connect) for all options.
-| key | default | details |
+| key                    | default                                       | details                                                              |
 | ---------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
-| `:headers` | `true` | Whether the client supports headers. |
-| `:lang` | `clojure` | The implementation language of the client. |
-| `:name` | `claxon` | Client name. |
-| `:pedantic` | `false` | Turns off additional strict format checking. |
-| `:verbose` | `false` | Turns off +OK protocol acknowledgements. |
-| `:claxon/executor` | `(Executors/newVirtualThreadPerTaskExecutor)` | Executor used to run the background frame-reading loop and handlers. |
-| `:claxon/frame-shapes` | the full NATS op table | The data-driven protocol description. Override this with care. |
-| `:claxon/handlers` | a default `PING`→`PONG` responder | Map of `{matcher fn}` handlers registered automatically on connect. |
-| `:claxon/timeout-ms` | `2000` | Socket connect timeout per URL. |
-| `:claxon/urls` | `["nats://localhost:4222"]` | Candidate server URLs, tried in random order until one connects. |
-| `:claxon/verify-tls` | true | Set this to false to disable SSL verification. |
+| `:headers`             | `true`                                        | Whether the client supports headers.                                 |
+| `:lang`                | `clojure`                                     | The implementation language of the client.                           |
+| `:name`                | `claxon`                                      | Client name.                                                         |
+| `:pedantic`            | `false`                                       | Set additional strict format checking.                               |
+| `:verbose`             | `false`                                       | Set +OK protocol acknowledgements.                                   |
+| `:claxon/executor`     | `(Executors/newVirtualThreadPerTaskExecutor)` | Executor used to run the background frame-reading loop and handlers. |
+| `:claxon/frame-shapes` | the full NATS op table                        | The data-driven protocol description. Override this with care.       |
+| `:claxon/handlers`     | a default `PING`→`PONG` responder             | Handlers registered automatically on connect.                        |
+| `:claxon/timeout-ms`   | `2000`                                        | Socket connect timeout per URL.                                      |
+| `:claxon/urls`         | `["nats://localhost:4222"]`                   | Candidate server URLs, tried in random order until one connects.     |
+| `:claxon/verify-tls`   | `true`                                        | Set this to disable client SSL verification.                         |
 
 ### invoke
 
