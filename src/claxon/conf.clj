@@ -11,6 +11,7 @@
    :lang "clojure"
    :name "claxon"
    :headers true
+   :protocol 1
    :claxon/urls ["nats://localhost:4222"]
    :claxon/timeout-ms 2000
    :claxon/executor (Executors/newVirtualThreadPerTaskExecutor)

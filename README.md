@@ -4,7 +4,7 @@
 [![bb compatible](https://raw.githubusercontent.com/babashka/babashka/master/logo/badge.svg)](https://book.babashka.org#badges)
 [![](https://github.com/lispyclouds/claxon/workflows/Tests/badge.svg)](https://github.com/lispyclouds/claxon/actions?query=workflow%3ATests)
 
-A minimal, pure-Clojure, data-driven [NATS](https://nats.io) client.
+A minimal, pure-Clojure, data-driven, _always_ backward (and hopefully forward) compatible [NATS](https://nats.io) client.
 
 ### [Getting started](/doc/000-getting-started.md)
 

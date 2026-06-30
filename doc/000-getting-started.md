@@ -42,6 +42,7 @@ See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-proto
 | `:name` | `claxon` | Client name. |
 | `:pedantic` | `false` | Set additional strict format checking. |
 | `:verbose` | `false` | Set +OK protocol acknowledgements. |
+| `:protocol` | `1` | 0 or 1 inidicates support for dynamic INFO messages from the sever. |
 | `:claxon/executor` | `(Executors/newVirtualThreadPerTaskExecutor)` | Executor used to run the background frame-reading loop and handlers. |
 | `:claxon/frame-shapes` | the full NATS op table | The data-driven protocol description. Override this with care. |
 | `:claxon/handlers` | a `PING` responder and an `-ERR` handler | Handlers registered automatically on connect. |

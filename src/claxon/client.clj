@@ -66,24 +66,26 @@
                  claxon/handlers
                  claxon/verify-tls
                  claxon/frame-shapes]} opts
-         {:keys [host port ^Socket socket user password]}
+         {:keys [host port ^Socket socket user password token]}
          (->> urls
               (map ic/parse-nats-url)
               (shuffle)
-              (some (fn [{:keys [^String host ^Integer port user password]}]
+              (some (fn [{:keys [^String host ^Integer port user password token]}]
                       (try
                         {:socket (doto (Socket.)
                                    (.connect (InetSocketAddress. host port) timeout-ms))
                          :host host
                          :port port
                          :user user
-                         :password password}
+                         :password password
+                         :token token}
                         (catch Exception _ false)))))
          _ (when-not socket
              (throw (ex-info "Cannot connect to any of the urls" {:urls urls})))
          opts (cond-> opts
                 user (assoc :user user)
-                password (assoc :password password))
+                password (assoc :pass password)
+                token (assoc :auth_token token))
          in (-> socket
                 .getInputStream
                 BufferedInputStream.)
