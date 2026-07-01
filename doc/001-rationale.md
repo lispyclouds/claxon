@@ -70,6 +70,8 @@ flowchart TB
 
 The following are **not yet implemented** but planned (based on asks/issues) in order of priority:
 
+- **Custom TLS CAs**: It uses the system store as of now, support for specifying a CA file could be added.
+- **TLS-first handshake**: Support no plain text connections as described [here](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/tls#tls-first-handshake).
 - **WebSocket transport.** Only raw TCP sockets are supported as of now.
 - **Editor integration** Since the protocol is spec driven, clj-kondo/clojure-lsp can be hooked in to provide real time feedback on function calls.
 - **Advanced Authentication** No NKey/JWT signing of the `INFO` nonce yet.
