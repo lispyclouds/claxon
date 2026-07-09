@@ -43,6 +43,7 @@ Overall, all it does is:
 
 The following are **not yet implemented** but planned (based on asks/issues) in order of priority:
 
+- **Tuned Performance**: The current focus is to have it fully usable and functional and letting users and patterns emerge, trading off low level performance like zero alloc parsing etc. It this is too slow, will be prioritised.
 - **Custom TLS CAs**: It uses the system store as of now, support for specifying a CA file could be added.
 - **TLS-first handshake**: Support no plain text connections as described [here](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/tls#tls-first-handshake).
 - **WebSocket transport.** Only raw TCP sockets are supported as of now.
