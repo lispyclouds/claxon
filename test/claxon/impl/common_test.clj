@@ -68,6 +68,39 @@
   (testing "sub may be a strict subset of super's keys"
     (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "FOO"} {:op "MSG"})))))
 
+(deftest submap-subject-match
+  (testing "match identical subjects"
+    (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.bb.cc"})))))
+
+(deftest submap-subject-more-elements
+  (testing "match message subject has more elements than handler subject"
+    (is (false? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.bb.cc"})))))
+
+(deftest submap-subject-less-elements
+  (testing "match message subject with fewer elements than handler subject"
+    (is (false? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb"} {:op "MSG" :subject "aa.bb.cc"})))))
+
+(deftest submap-subject-one-wildcard
+  (testing "match message subject with handler with one * wildcard"
+    (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.*.cc"})))))
+
+(deftest submap-subject-two-wildcards
+  (testing "match message subject with handler with two * wildcards"
+    (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "*.bb.*"})))))
+
+(deftest submap-subject-more-elements-wildcard
+  (testing "match message subject with more elements than handler with one * wildcard"
+    (is (false? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.bb.*"})))))
+
+(deftest submap-subject-one-accept-the-rest-wildcard
+  (testing "match message subject with handler with one > wildcard"
+    (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.>"})))))
+
+(deftest submap-subject-multiple-wildcards
+  (testing "match message subject with handler with one * and one > wildcard"
+    (is (true? (ic/submap? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.*.>"})))))
+
+
 (deftest submap-missing-key-fails
   (testing "a key present in sub but absent from super fails the match"
     (is (false? (ic/submap? {:op "MSG"} {:op "MSG" :sid "1"})))))

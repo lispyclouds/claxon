@@ -38,11 +38,31 @@
      :password password
      :token token}))
 
+(defn subject-match?
+  "Matches subject strings as defined in message and handler.
+     Match applies NATS defined wildcards to be used.
+     Returns boolean"
+  [message handler]
+  (let [hlr (str/split handler #"\.")
+        msg (str/split message #"\.")]
+    (when (or (= (count hlr) (count msg))
+              (some #{">"} hlr))
+      (->> hlr
+           (take-while (complement #{">"}))
+           (map (fn [m h]
+                  (or (= m h)
+                      (= "*" h))) msg)
+           (every? identity)))))
+
 (defn submap?
   [super sub]
-  (every? (fn [[k v]]
-            (and (contains? super k)
-                 (= v (get super k))))
+  (every? (fn [[hk hv]]
+            (let [mv (get super hk)]
+              (when (contains? super hk)
+                (cond->> hv
+                  (not (= hk :subject)) (= mv)
+                  (= hk :subject) (subject-match? mv)))))
+
           sub))
 
 (defn dispatch
@@ -69,4 +89,31 @@
 
   (submap? nil {:foo :bar})
 
-  (parse-nats-url "nats://foo"))
+  (defn submap?
+    [super sub]
+    (every? (fn [[hk hv]]
+              (let [mv (get super hk)]
+                (when (contains? super hk)
+                  (cond->> hv
+                    (not (= hk :subject)) (= mv)
+                    (= hk :subject) (subject-match? mv)))))
+
+            sub))
+
+  (defn subject-match?
+    "Matches subject strings as defined in message and handler.
+     Match applies NATS defined wildcards to be used.
+     Returns boolean"
+    [message handler]
+    (let [hlr (str/split handler #"\.")
+          msg (str/split message #"\.")]
+      (when (or (= (count hlr) (count msg))
+                (some #{">"} hlr))
+        (->> hlr
+             (take-while (complement #{">"}))
+             (map (fn [m h]
+                    (or (= m h)
+                        (= "*" h))) msg)
+             (every? identity)))))
+
+  (subject-match? "ll.r.xx" "ll.x.xx"))
