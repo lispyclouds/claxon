@@ -13,7 +13,7 @@
 
 (defn add-handler
   "Registers handler to be called on conn whenever an incoming frame matches op and args.
-  As part of args, subjects are patterns as defined by NATS subject hierarchy wildcards.  
+  As part of args, subjects work as patterns as defined by NATS subject hierarchy wildcards.  
   Takes in an optional error-handler in case of uncaught exceptions in the handler.
   Uncaught exceptions in the error-handler will be swallowed.
   The handler will be passed in the frame and conn, the err-handler the exception as well.

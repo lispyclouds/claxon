@@ -40,7 +40,7 @@
 
 (defn subject-matches?
   "Matches subject in frame against given subject pattern from handler.
-   Matches according to NATS subject hierarchy wildcards to be used.
+   Pattern works according to NATS subject hierarchy wildcards.
    Returns boolean"
   [subject subject-pattern]
   (let [s-pattern (str/split subject-pattern #"\.")
