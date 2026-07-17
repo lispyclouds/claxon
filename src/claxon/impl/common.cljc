@@ -92,7 +92,7 @@
 
   (matches? nil {:foo :bar})
 
-  ;; Five main variants for subject matching
+  ;; Some main variants for subject matching
   (subject-matches? "ll.x.xx" "ll.x.xx") ;; true - subjects are identical
 
   (subject-matches? "ll.r.xx" "ll.x.xx") ;; false - second element in subjects differs
@@ -101,15 +101,8 @@
 
   (subject-matches? "ll.r.xx" "ll.*.xx") ;; true - second element contains * wildcard
 
-<<<<<<< HEAD
-  (subject-matches? "ll.r.xx" "ll.>")) ;; true - contains > wildcard. Notice amount of element between subjects differs
-=======
   (subject-matches? "ll.r.xx" "ll.>") ;; true - contains > wildcard. Notice amount of element between subjects differs
 
   (subject-matches? "ll.r.xx.zz" "ll.>.xx") ;; nil (is false) - subject pattern is excessive and not applicable. The added element implies something that does not exist.
 
-  (subject-matches? "ll" "ll.a.>") ;; nil (is false) - contains > wildcard. Elements before > require to match
-  )
-
-
->>>>>>> 080bb1e (Solve edge case with > wildcard.)
+  (subject-matches? "ll" "ll.a.>")) ;; nil (is false) - contains > wildcard. Elements before > require to match)
