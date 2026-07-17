@@ -84,3 +84,22 @@
                                   (efn frame conn e)))))]
                  (.submit executor ^Runnable task))))))
 
+(comment
+
+  (set! *warn-on-reflection* true)
+
+  (matches? nil {:foo :bar})
+
+  ;; Five main variants for subject matching
+  (subject-matches? "ll.x.xx" "ll.x.xx") ;; true - subjects are identical
+
+  (subject-matches? "ll.r.xx" "ll.x.xx") ;; false - second element in subjects differs
+
+  (subject-matches? "ll.x.xx" "ll.x") ;; nil (equals false) - amont of elements in subjects differs
+
+  (subject-matches? "ll.r.xx" "ll.*.xx") ;; true - second element contains * wildcard
+
+  (subject-matches? "ll.r.xx" "ll.>") ;; true - contains > wildcard. Notice amount of element between subjects differs
+  )
+
+
