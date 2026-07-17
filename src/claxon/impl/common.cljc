@@ -43,9 +43,12 @@
    Pattern works according to NATS subject hierarchy wildcards."
   [subject subject-pattern]
   (let [s-pattern (str/split subject-pattern #"\.")
-        sub (str/split subject #"\.")]
-    (when (or (= (count s-pattern) (count sub))
-              (some #{">"} s-pattern))
+        sub (str/split subject #"\.")
+        pc (count s-pattern)
+        sc (count sub)]
+    (when (or (= pc sc)
+              (and (#{">"} (last s-pattern))
+                   (<= (- pc 1) sc)))
       (->> s-pattern
            (take-while (complement #{">"}))
            (map (fn [s p]
@@ -94,8 +97,19 @@
 
   (subject-matches? "ll.r.xx" "ll.x.xx") ;; false - second element in subjects differs
 
-  (subject-matches? "ll.x.xx" "ll.x") ;; nil (equals false) - amont of elements in subjects differs
+  (subject-matches? "ll.x.xx" "ll.x") ;; nil (is false) - amont of elements in subjects differs
 
   (subject-matches? "ll.r.xx" "ll.*.xx") ;; true - second element contains * wildcard
 
+<<<<<<< HEAD
   (subject-matches? "ll.r.xx" "ll.>")) ;; true - contains > wildcard. Notice amount of element between subjects differs
+=======
+  (subject-matches? "ll.r.xx" "ll.>") ;; true - contains > wildcard. Notice amount of element between subjects differs
+
+  (subject-matches? "ll.r.xx.zz" "ll.>.xx") ;; nil (is false) - subject pattern is excessive and not applicable. The added element implies something that does not exist.
+
+  (subject-matches? "ll" "ll.a.>") ;; nil (is false) - contains > wildcard. Elements before > require to match
+  )
+
+
+>>>>>>> 080bb1e (Solve edge case with > wildcard.)

@@ -73,31 +73,35 @@
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.bb.cc"})))))
 
 (deftest matches-subject-more-elements
-  (testing "match message subject has more elements than handler subject"
+  (testing "match message subject has more elements than pattern subject"
     (is (false? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.bb.cc"})))))
 
 (deftest matches-subject-less-elements
-  (testing "match message subject with fewer elements than handler subject"
+  (testing "match message subject with fewer elements than pattern subject"
     (is (false? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb"} {:op "MSG" :subject "aa.bb.cc"})))))
 
 (deftest matches-subject-one-wildcard
-  (testing "match message subject with handler with one * wildcard"
+  (testing "match message subject with pattern with one * wildcard"
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.*.cc"})))))
 
 (deftest matches-subject-two-wildcards
-  (testing "match message subject with handler with two * wildcards"
+  (testing "match message subject with pattern with two * wildcards"
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "*.bb.*"})))))
 
 (deftest matches-subject-more-elements-wildcard
-  (testing "match message subject with more elements than handler with one * wildcard"
+  (testing "match message subject with more elements than pattern with one * wildcard"
     (is (false? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.bb.*"})))))
 
-(deftest matches-subject-one-accept-the-rest-wildcard
-  (testing "match message subject with handler with one > wildcard"
+(deftest matches-subject-and-accept-the-rest-wildcard
+  (testing "match message subject with pattern with one > wildcard"
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc"} {:op "MSG" :subject "aa.>"})))))
 
+(deftest matches-subject-to-many-elements-for-wildcard
+  (testing "match message subject with fewer elements then required for > wildcard"
+    (is (false? (ic/matches? {:op "MSG" :sid "1" :subject "aa"} {:op "MSG" :subject "aa.bb.>"})))))
+
 (deftest matches-subject-multiple-wildcards
-  (testing "match message subject with handler with one * and one > wildcard"
+  (testing "match message subject with pattern with one * and one > wildcard"
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.*.>"})))))
 
 (deftest matches-missing-key-fails
