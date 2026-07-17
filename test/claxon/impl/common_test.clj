@@ -100,7 +100,6 @@
   (testing "match message subject with handler with one * and one > wildcard"
     (is (true? (ic/matches? {:op "MSG" :sid "1" :subject "aa.bb.cc.dd"} {:op "MSG" :subject "aa.*.>"})))))
 
-
 (deftest matches-missing-key-fails
   (testing "a key present in sub but absent from super fails the match"
     (is (false? (ic/matches? {:op "MSG"} {:op "MSG" :sid "1"})))))

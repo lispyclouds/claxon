@@ -40,8 +40,7 @@
 
 (defn subject-matches?
   "Matches subject in frame against given subject pattern from handler.
-   Pattern works according to NATS subject hierarchy wildcards.
-   Returns boolean"
+   Pattern works according to NATS subject hierarchy wildcards."
   [subject subject-pattern]
   (let [s-pattern (str/split subject-pattern #"\.")
         sub (str/split subject #"\.")]
@@ -51,7 +50,8 @@
            (take-while (complement #{">"}))
            (map (fn [s p]
                   (or (= s p)
-                      (= "*" p))) sub)
+                      (= "*" p)))
+                sub)
            (every? identity)))))
 
 (defn matches?
@@ -85,7 +85,6 @@
                  (.submit executor ^Runnable task))))))
 
 (comment
-
   (set! *warn-on-reflection* true)
 
   (matches? nil {:foo :bar})
@@ -99,7 +98,4 @@
 
   (subject-matches? "ll.r.xx" "ll.*.xx") ;; true - second element contains * wildcard
 
-  (subject-matches? "ll.r.xx" "ll.>") ;; true - contains > wildcard. Notice amount of element between subjects differs
-  )
-
-
+  (subject-matches? "ll.r.xx" "ll.>")) ;; true - contains > wildcard. Notice amount of element between subjects differs
