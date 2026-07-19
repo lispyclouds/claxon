@@ -58,15 +58,15 @@
            (every? identity)))))
 
 (defn matches?
-  [super sub]
-  (every? (fn [[pk pv]]
-            (let [av (get super pk)]
-              (when (contains? super pk)
-                (if (= pk :subject)
-                  (subject-matches? av pv)
-                  (= av pv)))))
-
-          sub))
+  [frame matcher]
+  (every?
+   (fn [[mk mv]]
+     (let [fv (get frame mk)]
+       (when (contains? frame mk)
+         (if (= mk :subject)
+           (subject-matches? fv mv)
+           (= fv mv)))))
+   matcher))
 
 (defn dispatch
   [{:keys [op] :as frame}
