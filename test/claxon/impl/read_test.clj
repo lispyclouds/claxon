@@ -43,6 +43,126 @@
   (is (= "" (ir/read-all (->stream "\r\n")))))
 
 ;; ---------------------------------------------------------------------------
+;; where-crlf
+;; ---------------------------------------------------------------------------
+
+(deftest where-crlf-finds-crlf
+  (let [buf (.getBytes "PING\r\n" "UTF-8")]
+    (is (= 4 (ir/where-crlf buf 0 (alength buf))))))
+
+(deftest where-crlf-not-found-returns-negative-one
+  (let [buf (.getBytes "PING" "UTF-8")]
+    (is (= -1 (ir/where-crlf buf 0 (alength buf))))))
+
+(deftest where-crlf-lone-lf-is-not-a-match
+  (let [buf (.getBytes "FOO\nBAR\r\n" "UTF-8")]
+    (is (= 7 (ir/where-crlf buf 0 (alength buf))))))
+
+(deftest where-crlf-respects-from-offset
+  (testing "a CRLF before `from` is not found"
+    (let [buf (.getBytes "\r\nPING\r\n" "UTF-8")]
+      (is (= 6 (ir/where-crlf buf 2 (alength buf)))))))
+
+(deftest where-crlf-respects-to-bound
+  (testing "a CRLF at or past `to` is not found"
+    (let [buf (.getBytes "PING\r\n" "UTF-8")]
+      (is (= -1 (ir/where-crlf buf 0 4))))))
+
+;; ---------------------------------------------------------------------------
+;; read-til-crlf-or-all
+;; ---------------------------------------------------------------------------
+
+(deftest read-til-crlf-or-all-finds-crlf-in-one-read
+  (let [in (->stream "PING\r\n")
+        buf (byte-array 64)
+        idx (ir/read-til-crlf-or-all in buf)]
+    (is (= 4 idx))
+    (is (= "PING" (String. buf 0 idx)))))
+
+(deftest read-til-crlf-or-all-buffer-exhausted-without-crlf
+  (testing "returns -1 for idx once the buffer is fully consumed with no CRLF found"
+    (let [in (->stream "PINGPONG")
+          buf (byte-array 8)
+          idx (ir/read-til-crlf-or-all in buf)]
+      (is (= -1 idx)))))
+
+(deftest read-til-crlf-or-all-crlf-split-across-reads
+  (testing "the CRLF is found even when the CR and LF land in different chunks
+            delivered by the underlying stream (throttled to short reads)"
+    (let [src (->stream "PING\r\n")
+          throttled (proxy [java.io.InputStream] []
+                      (read
+                        ([buf off len] (.read src buf off (min 1 len)))))
+          buf (byte-array 64)
+          idx (ir/read-til-crlf-or-all throttled buf)]
+      (is (= 4 idx))
+      (is (= "PING" (String. buf 0 idx))))))
+
+(deftest read-til-crlf-or-all-throws-eof-mid-line
+  (is (thrown? EOFException
+               (ir/read-til-crlf-or-all (->stream "PING") (byte-array 64)))))
+
+;; ---------------------------------------------------------------------------
+;; skip-exactly
+;; ---------------------------------------------------------------------------
+
+(deftest skip-exactly-skips-requested-bytes-then-reads-remainder
+  (let [in (->stream "1234567890")]
+    (ir/skip-exactly in 5)
+    (is (= "67890" (String. ^bytes (ir/read-exactly in 5) "UTF-8")))))
+
+(deftest skip-exactly-zero-is-a-no-op
+  (let [in (->stream "abc")]
+    (ir/skip-exactly in 0)
+    (is (= "abc" (String. ^bytes (ir/read-exactly in 3) "UTF-8")))))
+
+(deftest skip-exactly-throws-eof-on-short-stream
+  (is (thrown? EOFException (ir/skip-exactly (->stream "abc") 10))))
+
+(deftest skip-exactly-handles-partial-skips
+  (testing "loops correctly even if the underlying stream only skips a little at a time"
+    (let [src (->stream "abcdefghij")
+          throttled (proxy [java.io.InputStream] []
+                      (read
+                        ([] (.read src))
+                        ([buf off len] (.read src buf off (min 1 len))))
+                      (skip [n] (.skip src (min 1 n))))]
+      (ir/skip-exactly throttled 5)
+      (is (= "fghij" (String. ^bytes (ir/read-exactly throttled 5) "UTF-8"))))))
+
+;; ---------------------------------------------------------------------------
+;; whitespace?
+;; ---------------------------------------------------------------------------
+
+(deftest whitespace?-recognizes-space-and-tab
+  (is (true? (ir/whitespace? \space)))
+  (is (true? (ir/whitespace? \tab))))
+
+(deftest whitespace?-rejects-non-whitespace
+  (is (false? (ir/whitespace? \a)))
+  (is (false? (ir/whitespace? \newline))))
+
+;; ---------------------------------------------------------------------------
+;; split-op-line
+;; ---------------------------------------------------------------------------
+
+(deftest split-op-line-no-args
+  (is (= ["PING" ""] (ir/split-op-line "PING"))))
+
+(deftest split-op-line-with-args
+  (is (= ["SUB" "FOO 1"] (ir/split-op-line "SUB FOO 1"))))
+
+(deftest split-op-line-tab-delimited
+  (is (= ["PUB" "FOO\t11"] (ir/split-op-line "PUB\tFOO\t11"))))
+
+(deftest split-op-line-collapses-repeated-separators
+  (testing "extra whitespace between the op and its args is skipped"
+    (is (= ["SUB" "FOO 1"] (ir/split-op-line "SUB   FOO 1")))))
+
+(deftest split-op-line-empty-string
+  (is (= ["" ""] (ir/split-op-line ""))))
+
+;; ---------------------------------------------------------------------------
 ;; read-exactly
 ;; ---------------------------------------------------------------------------
 

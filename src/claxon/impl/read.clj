@@ -25,9 +25,9 @@
     (loop [off 0 scanned 0]
       (let [idx (where-crlf buf scanned off)]
         (if (>= idx 0)
-          [idx off]
+          idx
           (if (= off size)
-            [-1 off]
+            -1
             (let [r (.read in buf off (- size off))]
               (if (= r -1)
                 (throw (EOFException. "socket closed mid-line"))
@@ -49,7 +49,7 @@
   (loop [size 64] ;; Good per benchmarks
     (.mark in size)
     (let [buf (byte-array size)
-          [^long idx _off] (read-til-crlf-or-all in buf)]
+          ^long idx (read-til-crlf-or-all in buf)]
       (if (>= idx 0)
         (let [s (String. buf 0 idx)]
           (.reset in)
