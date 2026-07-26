@@ -3,26 +3,83 @@
    [claxon.impl.common :as ic]
    [clojure.string :as str])
   (:import
-   [java.io ByteArrayOutputStream EOFException InputStream]
+   [java.io EOFException InputStream]
    [java.util.concurrent ExecutorService]))
 
+(defn where-crlf
+  [^bytes buf ^long from ^long to]
+  (loop [i from]
+    (cond
+      (>= i (dec to))
+      -1
+
+      (and (= 13 (aget buf i))
+           (= 10 (aget buf (inc i))))
+      i
+
+      :else (recur (inc i)))))
+
+(defn read-til-crlf-or-all
+  [^InputStream in ^bytes buf]
+  (let [size (alength buf)]
+    (loop [off 0 scanned 0]
+      (let [idx (where-crlf buf scanned off)]
+        (if (>= idx 0)
+          [idx off]
+          (if (= off size)
+            [-1 off]
+            (let [r (.read in buf off (- size off))]
+              (if (= r -1)
+                (throw (EOFException. "socket closed mid-line"))
+                (recur (+ off r) (max 0 (dec off)))))))))))
+
+(defn skip-exactly
+  [^InputStream in ^long n]
+  (loop [remaining n]
+    (when (pos? remaining)
+      (let [skipped (.skip in remaining)]
+        (if (pos? skipped)
+          (recur (- remaining skipped))
+          (if (= -1 (.read in))
+            (throw (EOFException. "socket closed mid-line"))
+            (recur (dec remaining))))))))
+
 (defn read-all
-  [in]
-  (let [buf (ByteArrayOutputStream.)]
-    (loop [prev -1]
-      (let [b (InputStream/.read in)]
-        (cond
-          (= b -1)
-          (throw (EOFException. "socket closed mid-line"))
+  [^InputStream in]
+  (loop [size 64] ;; Good per benchmarks
+    (.mark in size)
+    (let [buf (byte-array size)
+          [^long idx _off] (read-til-crlf-or-all in buf)]
+      (if (>= idx 0)
+        (let [s (String. buf 0 idx)]
+          (.reset in)
+          (skip-exactly in (+ idx 2))
+          s)
+        (do
+          (.reset in)
+          (recur (* 2 size)))))))
 
-          (and (= prev 13) (= b 10))
-          (let [^bytes line-bytes (.toByteArray buf)]
-            (String. line-bytes 0 (dec (alength line-bytes)) "UTF-8"))
+(defn whitespace?
+  [c]
+  (or (= c \space)
+      (= c \tab)))
 
-          :else
-          (do
-            (.write buf b)
-            (recur b)))))))
+(defn split-op-line
+  [^String line]
+  (let [n (.length line)
+        sp (loop [i 0]
+             (cond
+               (= i n) -1
+               (whitespace? (.charAt line i)) i
+               :else (recur (inc i))))]
+    (if (= sp -1)
+      [line ""]
+      (let [rest-start (loop [i (inc sp)]
+                         (if (and (< i n)
+                                  (whitespace? (.charAt line i)))
+                           (recur (inc i))
+                           i))]
+        [(subs line 0 sp) (subs line rest-start n)]))))
 
 (defn read-exactly
   [in n]
@@ -136,7 +193,7 @@
 (defn read-frame
   [in shapes]
   (let [line (read-all in)
-        [op-tok rest-line] (str/split line #"[ \t]+" 2)
+        [op-tok rest-line] (split-op-line line)
         op (str/upper-case op-tok)
         rest-line (or rest-line "")
         shape (get shapes op)]
@@ -156,3 +213,6 @@
            #(loop []
               (ic/dispatch (read-frame in frame-shapes) handlers conn)
               (recur))))
+
+(comment
+  (set! *warn-on-reflection* true))
