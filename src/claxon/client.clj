@@ -33,16 +33,7 @@
 (defn remove-handler
   "Unregisters the handler in a conn by id."
   [{:keys [handlers]} id]
-  ;; TODO: Maybe O(1) deletions later; currently O(number of ops)
-  (swap! handlers
-         #(reduce-kv (fn [acc op hs]
-                       (assoc acc
-                              op
-                              (if (contains? hs id)
-                                (dissoc hs id)
-                                hs)))
-                     {}
-                     %))
+  (swap! handlers update-vals #(dissoc % id)) ;; Tradeoff: number of ops should be quite low
   nil)
 
 (defn invoke
