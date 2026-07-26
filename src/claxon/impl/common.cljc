@@ -39,18 +39,17 @@
      :token token}))
 
 (defn subject-matches?
-  "Matches subject in frame against given subject pattern from handler.
-   Pattern works according to NATS subject hierarchy wildcards."
   [subject subject-pattern]
   (let [s-pattern (str/split subject-pattern #"\.")
         sub (str/split subject #"\.")
         pc (count s-pattern)
         sc (count sub)]
-    (when (or (= pc sc)
-              (and (= ">" (last s-pattern))
-                   (<= (- pc 1) sc)))
+    (if-not (or (= pc sc)
+                (and (= ">" (last s-pattern))
+                     (<= (- pc 1) sc)))
+      false
       (->> s-pattern
-           (take-while (complement #{">"}))
+           (take-while #(not= % ">"))
            (map (fn [s p]
                   (or (= s p)
                       (= "*" p)))
@@ -97,12 +96,12 @@
 
   (subject-matches? "ll.r.xx" "ll.x.xx") ;; false - second element in subjects differs
 
-  (subject-matches? "ll.x.xx" "ll.x") ;; nil (is false) - amont of elements in subjects differs
+  (subject-matches? "ll.x.xx" "ll.x") ;; false - amont of elements in subjects differs
 
   (subject-matches? "ll.r.xx" "ll.*.xx") ;; true - second element contains * wildcard
 
   (subject-matches? "ll.r.xx" "ll.>") ;; true - contains > wildcard. Notice amount of element between subjects differs
 
-  (subject-matches? "ll.r.xx.zz" "ll.>.xx") ;; nil (is false) - subject pattern is excessive and not applicable. The added element implies something that does not exist.
+  (subject-matches? "ll.r.xx.zz" "ll.>.xx") ;; false - subject pattern is excessive and not applicable. The added element implies something that does not exist.
 
-  (subject-matches? "ll" "ll.a.>")) ;; nil (is false) - contains > wildcard. Elements before > require to match)
+  (subject-matches? "ll" "ll.a.>")) ;; false - contains > wildcard. Elements before > require to match)

@@ -13,10 +13,10 @@
 
 (defn add-handler
   "Registers handler to be called on conn whenever an incoming frame matches op and args.
-  As part of args, subjects work as patterns as defined by NATS subject hierarchy wildcards.  
+  As part of args, subjects work as patterns as defined by NATS subject hierarchy wildcards.
   Takes in an optional error-handler in case of uncaught exceptions in the handler.
-  Uncaught exceptions in the error-handler will be swallowed.
   The handler will be passed in the frame and conn, the err-handler the exception as well.
+  NOTE: Uncaught exceptions in the error-handler will be swallowed.
   Returns a handler id, usable with remove-handler."
   ([conn handler matches]
    (add-handler conn handler nil matches))
@@ -33,7 +33,7 @@
 (defn remove-handler
   "Unregisters the handler in a conn by id."
   [{:keys [handlers]} id]
-  ;; TODO: Maybe O(1) deletions later
+  ;; TODO: Maybe O(1) deletions later; currently O(number of ops)
   (swap! handlers
          #(reduce-kv (fn [acc op hs]
                        (assoc acc
