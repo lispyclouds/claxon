@@ -28,7 +28,7 @@
           [nil nil nil]
 
           (str/includes? user-info ":")
-          (let [[u p] (str/split user-info #":" 2)]
+          (let [[u p] (String/.split user-info ":" 2)]
             [u p nil])
           :else [user-info nil user-info])]
     {:scheme scheme
@@ -40,10 +40,10 @@
 
 (defn subject-matches?
   [subject subject-pattern]
-  (let [s-pattern (str/split subject-pattern #"\.")
-        sub (str/split subject #"\.")
-        pc (count s-pattern)
-        sc (count sub)]
+  (let [s-pattern (String/.split subject-pattern "\\.")
+        sub (String/.split subject "\\.")
+        pc (alength s-pattern)
+        sc (alength sub)]
     (if-not (or (= pc sc)
                 (and (= ">" (last s-pattern))
                      (<= (- pc 1) sc)))

@@ -141,12 +141,12 @@
       (parse-tokenized-args arg-specs (str/split rest-line #"[ \t]+")))))
 
 (defn parse-headers-block
-  [^bytes raw]
-  (let [s (String. raw "UTF-8")
-        [version & lines] (str/split s #"\r\n")
-        [_ status desc] (str/split version #" " 3)
+  [raw]
+  (let [s (String. ^bytes raw)
+        [version & lines] (String/.split s "\r\n")
+        [_ status desc] (String/.split version " " 3)
         headers (reduce (fn [m line]
-                          (let [[k v] (str/split line #":" 2)]
+                          (let [[k v] (String/.split line ":" 2)]
                             (if (and k v)
                               (update m k (fnil conj []) (str/trim v))
                               m)))
@@ -194,7 +194,7 @@
   [in shapes]
   (let [line (read-all in)
         [op-tok rest-line] (split-op-line line)
-        op (str/upper-case op-tok)
+        op (String/.toUpperCase op-tok)
         rest-line (or rest-line "")
         shape (get shapes op)]
     (when-not shape
