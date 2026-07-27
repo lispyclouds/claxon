@@ -4,7 +4,7 @@
 
 (def lib 'org.clojars.lispyclouds/claxon)
 
-(def version "1.3")
+(def version "1.4")
 
 (def class-dir "target/classes")
 
