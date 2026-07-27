@@ -11,6 +11,10 @@
 
 (def write-json #?(:bb json/generate-string :clj json/write-str))
 
+(def ^:const DOT #"\.")
+
+(def ^:const COLON #":")
+
 (defn parse-nats-url
   [url]
   (let [uri (URI. url)
@@ -28,7 +32,7 @@
           [nil nil nil]
 
           (str/includes? user-info ":")
-          (let [[u p] (String/.split user-info ":" 2)]
+          (let [[u p] (.split COLON user-info 2)]
             [u p nil])
           :else [user-info nil user-info])]
     {:scheme scheme
@@ -40,8 +44,8 @@
 
 (defn subject-matches?
   [subject subject-pattern]
-  (let [s-pattern (String/.split subject-pattern "\\.")
-        sub (String/.split subject "\\.")
+  (let [s-pattern (.split DOT subject-pattern)
+        sub (.split DOT subject)
         pc (alength s-pattern)
         sc (alength sub)]
     (if-not (or (= pc sc)

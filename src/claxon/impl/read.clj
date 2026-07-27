@@ -6,6 +6,10 @@
    [java.io EOFException InputStream]
    [java.util.concurrent ExecutorService]))
 
+(def ^:const CRLF #"\r\n")
+
+(def ^:const SPACE #" ")
+
 (defn where-crlf
   [^bytes buf ^long from ^long to]
   (loop [i from]
@@ -143,10 +147,10 @@
 (defn parse-headers-block
   [raw]
   (let [s (String. ^bytes raw)
-        [version & lines] (String/.split s "\r\n")
-        [_ status desc] (String/.split version " " 3)
+        [version & lines] (.split CRLF s)
+        [_ status desc] (.split SPACE version 3)
         headers (reduce (fn [m line]
-                          (let [[k v] (String/.split line ":" 2)]
+                          (let [[k v] (.split ic/COLON line 2)]
                             (if (and k v)
                               (update m k (fnil conj []) (str/trim v))
                               m)))
