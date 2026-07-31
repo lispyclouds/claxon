@@ -9,10 +9,6 @@
    [java.io ByteArrayInputStream ByteArrayOutputStream]
    [java.util.concurrent.locks ReentrantLock]))
 
-;; ---------------------------------------------------------------------------
-;; helpers
-;; ---------------------------------------------------------------------------
-
 (def default-shapes (:claxon/frame-shapes (conf/defaults)))
 
 (defn capture
@@ -32,112 +28,94 @@
         in (ByteArrayInputStream. (.getBytes wire "UTF-8"))]
     (ir/read-frame in default-shapes)))
 
-;; ---------------------------------------------------------------------------
-;; encode-headers-block
-;; ---------------------------------------------------------------------------
+(deftest encode-headers
+  (testing "block-simple"
+    (let [encoded (iw/encode-headers-block {:headers {"Bar" ["Baz"]}})]
+      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-simple
-  (let [encoded (iw/encode-headers-block {:headers {"Bar" ["Baz"]}})]
-    (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
+  (testing "block-multi-value"
+    (let [encoded (iw/encode-headers-block {:headers {"BREAKFAST" ["donut" "eggs"]}})]
+      (is (= "NATS/1.0\r\nBREAKFAST: donut\r\nBREAKFAST: eggs\r\n\r\n"
+             (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-multi-value
-  (let [encoded (iw/encode-headers-block {:headers {"BREAKFAST" ["donut" "eggs"]}})]
-    (is (= "NATS/1.0\r\nBREAKFAST: donut\r\nBREAKFAST: eggs\r\n\r\n"
-           (String. ^bytes encoded "UTF-8")))))
+  (testing "block-no-headers"
+    (let [encoded (iw/encode-headers-block {:headers {}})]
+      (is (= "NATS/1.0\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-no-headers
-  (let [encoded (iw/encode-headers-block {:headers {}})]
-    (is (= "NATS/1.0\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
+  (testing "block-with-status-and-description"
+    (let [encoded (iw/encode-headers-block {:headers {} :status 503 :description "No Responders"})]
+      (is (= "NATS/1.0 503 No Responders\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-with-status-and-description
-  (let [encoded (iw/encode-headers-block {:headers {} :status 503 :description "No Responders"})]
-    (is (= "NATS/1.0 503 No Responders\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
+  (testing "block-status-without-description"
+    (let [encoded (iw/encode-headers-block {:headers {} :status 100})]
+      (is (= "NATS/1.0 100\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-status-without-description
-  (let [encoded (iw/encode-headers-block {:headers {} :status 100})]
-    (is (= "NATS/1.0 100\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
-
-(deftest encode-headers-block-keyword-key
-  (testing "a keyword header key is rendered via its name, dropping the leading colon"
+  (testing "block-keyword-key"
     (let [encoded (iw/encode-headers-block {:headers {:Bar ["Baz"]}})]
-      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
+      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-namespaced-keyword-key
-  (testing "name strips the namespace too, same as any other keyword"
+  (testing "block-namespaced-keyword-key"
     (let [encoded (iw/encode-headers-block {:headers {:kv/Operation ["DEL"]}})]
-      (is (= "NATS/1.0\r\nOperation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
+      (is (= "NATS/1.0\r\nOperation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-keyword-and-string-keys-mixed
-  (let [encoded (iw/encode-headers-block {:headers {:Bar ["Baz"] "Lunch" ["Burger"]}})
-        s (String. ^bytes encoded "UTF-8")]
-    (is (str/includes? s "Bar: Baz\r\n"))
-    (is (str/includes? s "Lunch: Burger\r\n"))))
+  (testing "block-keyword-and-string-keys-mixed"
+    (let [encoded (iw/encode-headers-block {:headers {:Bar ["Baz"] "Lunch" ["Burger"]}})
+          s (String. ^bytes encoded "UTF-8")]
+      (is (str/includes? s "Bar: Baz\r\n"))
+      (is (str/includes? s "Lunch: Burger\r\n"))))
 
-(deftest encode-headers-block-single-string-value-not-wrapped-by-caller
-  (testing "a bare string value (not wrapped in a vector) is treated as a single header value"
+  (testing "block-single-string-value-not-wrapped-by-caller"
     (let [encoded (iw/encode-headers-block {:headers {"Bar" "Baz"}})]
-      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
+      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-single-non-string-scalar-value
-  (testing "a bare non-string scalar (e.g. a number) is also wrapped and stringified"
+  (testing "block-single-non-string-scalar-value"
     (let [encoded (iw/encode-headers-block {:headers {"Count" 42}})]
-      (is (= "NATS/1.0\r\nCount: 42\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
+      (is (= "NATS/1.0\r\nCount: 42\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-keyword-key-with-scalar-value
-  (testing "keyword key and bare scalar value combine correctly"
+  (testing "block-keyword-key-with-scalar-value"
     (let [encoded (iw/encode-headers-block {:headers {:KV-Operation "DEL"}})]
-      (is (= "NATS/1.0\r\nKV-Operation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
+      (is (= "NATS/1.0\r\nKV-Operation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-vector-value-still-multi-valued
-  (testing "a sequential value is untouched -- still expands to one line per element,
-            same as before this change"
+  (testing "block-vector-value-still-multi-valued"
     (let [encoded (iw/encode-headers-block {:headers {:Breakfast ["donut" "eggs"]}})]
       (is (= "NATS/1.0\r\nBreakfast: donut\r\nBreakfast: eggs\r\n\r\n"
-             (String. ^bytes encoded "UTF-8"))))))
+             (String. ^bytes encoded "UTF-8")))))
 
-(deftest encode-headers-block-list-value-is-sequential-not-rewrapped
-  (testing "a list (not just a vector) is also sequential, so it isn't wrapped into [vs]"
+  (testing "block-list-value-is-sequential-not-rewrapped"
     (let [encoded (iw/encode-headers-block {:headers {"Bar" (list "Baz" "Qux")}})]
       (is (= "NATS/1.0\r\nBar: Baz\r\nBar: Qux\r\n\r\n" (String. ^bytes encoded "UTF-8"))))))
 
-;; ---------------------------------------------------------------------------
-;; ->payload-bytes
-;; ---------------------------------------------------------------------------
+(deftest payload-bytes
+  (testing "from-string"
+    (is (= "hello" (String. ^bytes (iw/->payload-bytes :bytes "hello") "UTF-8"))))
 
-(deftest payload-bytes-from-string
-  (is (= "hello" (String. ^bytes (iw/->payload-bytes :bytes "hello") "UTF-8"))))
+  (testing "from-byte-array"
+    (let [raw (byte-array [1 2 3])]
+      (is (identical? raw (iw/->payload-bytes :bytes raw)))))
 
-(deftest payload-bytes-from-byte-array
-  (let [raw (byte-array [1 2 3])]
-    (is (identical? raw (iw/->payload-bytes :bytes raw)))))
+  (testing "nil-becomes-empty"
+    (is (= 0 (alength ^bytes (iw/->payload-bytes :bytes nil)))))
 
-(deftest payload-bytes-nil-becomes-empty
-  (is (= 0 (alength ^bytes (iw/->payload-bytes :bytes nil)))))
+  (testing "rejects-unsupported-value-type"
+    (is (thrown? clojure.lang.ExceptionInfo (iw/->payload-bytes :bytes 12345))))
 
-(deftest payload-bytes-rejects-unsupported-value-type
-  (is (thrown? clojure.lang.ExceptionInfo (iw/->payload-bytes :bytes 12345))))
+  (testing "headers-type-delegates-to-encoder"
+    (let [encoded (iw/->payload-bytes :headers {:headers {"Bar" ["Baz"]}})]
+      (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest payload-bytes-headers-type-delegates-to-encoder
-  (let [encoded (iw/->payload-bytes :headers {:headers {"Bar" ["Baz"]}})]
-    (is (= "NATS/1.0\r\nBar: Baz\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
+  (testing "headers-type-supports-keyword-keys-and-scalar-values"
+    (let [encoded (iw/->payload-bytes :headers {:headers {:KV-Operation "DEL"}})]
+      (is (= "NATS/1.0\r\nKV-Operation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
 
-(deftest payload-bytes-headers-type-supports-keyword-keys-and-scalar-values
-  (let [encoded (iw/->payload-bytes :headers {:headers {:KV-Operation "DEL"}})]
-    (is (= "NATS/1.0\r\nKV-Operation: DEL\r\n\r\n" (String. ^bytes encoded "UTF-8")))))
+  (testing "unknown-type-throws"
+    (is (thrown? clojure.lang.ExceptionInfo (iw/->payload-bytes :unknown "x")))))
 
-(deftest payload-bytes-unknown-type-throws
-  (is (thrown? clojure.lang.ExceptionInfo (iw/->payload-bytes :unknown "x"))))
+(deftest derive-length-args
+  (testing "simple-pub"
+    (let [specs [{:name :body :type :bytes :length :bytes}]
+          encoded [(.getBytes "Hello NATS!" "UTF-8")]]
+      (is (= {:bytes 11} (iw/derive-length-args specs encoded)))))
 
-;; ---------------------------------------------------------------------------
-;; derive-length-args
-;; ---------------------------------------------------------------------------
-
-(deftest derive-length-args-simple-pub
-  (let [specs [{:name :body :type :bytes :length :bytes}]
-        encoded [(.getBytes "Hello NATS!" "UTF-8")]]
-    (is (= {:bytes 11} (iw/derive-length-args specs encoded)))))
-
-(deftest derive-length-args-hpub-style-composite
   (testing "the composite arg name (:bytes here) receives the TOTAL across all payloads,
             while the simple keyword-length arg (:hdr-bytes) receives just its own payload's length"
     (let [headers-bytes (.getBytes "NATS/1.0\r\nBar: Baz\r\n\r\n" "UTF-8")
@@ -147,160 +125,141 @@
           encoded [headers-bytes body-bytes]
           result (iw/derive-length-args specs encoded)]
       (is (= (alength ^bytes headers-bytes) (:hdr-bytes result)))
-      (is (= (+ (alength ^bytes headers-bytes) (alength ^bytes body-bytes)) (:bytes result))))))
+      (is (= (+ (alength ^bytes headers-bytes) (alength ^bytes body-bytes)) (:bytes result)))))
 
-(deftest derive-length-args-no-payloads
-  (is (= {} (iw/derive-length-args [] []))))
+  (testing "no-payloads"
+    (is (= {} (iw/derive-length-args [] []))))
 
-(deftest derive-length-args-empty-payload
-  (let [specs [{:name :body :type :bytes :length :bytes}]
-        encoded [(byte-array 0)]]
-    (is (= {:bytes 0} (iw/derive-length-args specs encoded)))))
+  (testing "empty-payload"
+    (let [specs [{:name :body :type :bytes :length :bytes}]
+          encoded [(byte-array 0)]]
+      (is (= {:bytes 0} (iw/derive-length-args specs encoded))))))
 
-;; ---------------------------------------------------------------------------
-;; render-args-line
-;; ---------------------------------------------------------------------------
+(deftest render-args-line
+  (testing "nil-spec"
+    (is (nil? (iw/render-args-line nil {}))))
 
-(deftest render-args-line-nil-spec
-  (is (nil? (iw/render-args-line nil {}))))
+  (testing "single-json-arg"
+    (is (= "{\"verbose\":false}"
+           (iw/render-args-line [{:name :opts :type :json}] {:opts {"verbose" false}}))))
 
-(deftest render-args-line-single-json-arg
-  (is (= "{\"verbose\":false}"
-         (iw/render-args-line [{:name :opts :type :json}] {:opts {"verbose" false}}))))
+  (testing "single-str-arg"
+    (is (= "boom" (iw/render-args-line [{:name :msg :type :str}] {:msg "boom"}))))
 
-(deftest render-args-line-single-str-arg
-  (is (= "boom" (iw/render-args-line [{:name :msg :type :str}] {:msg "boom"}))))
+  (testing "multi-arg-all-present"
+    (let [specs [{:name :subject :type :str}
+                 {:name :sid :type :str}
+                 {:name :reply-to :type :str :optional true}
+                 {:name :bytes :type :int}]]
+      (is (= "FOO.BAR 9 GREETING.34 11"
+             (iw/render-args-line specs {:subject "FOO.BAR" :sid "9" :reply-to "GREETING.34" :bytes 11})))))
 
-(deftest render-args-line-multi-arg-all-present
-  (let [specs [{:name :subject :type :str}
-               {:name :sid :type :str}
-               {:name :reply-to :type :str :optional true}
-               {:name :bytes :type :int}]]
-    (is (= "FOO.BAR 9 GREETING.34 11"
-           (iw/render-args-line specs {:subject "FOO.BAR" :sid "9" :reply-to "GREETING.34" :bytes 11})))))
+  (testing "multi-arg-optional-omitted"
+    (let [specs [{:name :subject :type :str}
+                 {:name :sid :type :str}
+                 {:name :reply-to :type :str :optional true}
+                 {:name :bytes :type :int}]]
+      (is (= "FOO.BAR 9 11"
+             (iw/render-args-line specs {:subject "FOO.BAR" :sid "9" :bytes 11})))))
 
-(deftest render-args-line-multi-arg-optional-omitted
-  (let [specs [{:name :subject :type :str}
-               {:name :sid :type :str}
-               {:name :reply-to :type :str :optional true}
-               {:name :bytes :type :int}]]
-    (is (= "FOO.BAR 9 11"
-           (iw/render-args-line specs {:subject "FOO.BAR" :sid "9" :bytes 11})))))
+  (testing "missing-required-throws"
+    (let [specs [{:name :subject :type :str} {:name :bytes :type :int}]]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (iw/render-args-line specs {:subject "FOO"}))))))
 
-(deftest render-args-line-missing-required-throws
-  (let [specs [{:name :subject :type :str} {:name :bytes :type :int}]]
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (iw/render-args-line specs {:subject "FOO"})))))
+(deftest snd
+  (testing "ping-no-args-no-payload"
+    (is (= "PING\r\n" (capture "PING" nil nil))))
 
-;; ---------------------------------------------------------------------------
-;; snd -- wire format assertions
-;; ---------------------------------------------------------------------------
+  (testing "pong"
+    (is (= "PONG\r\n" (capture "PONG" nil nil))))
 
-(deftest snd-ping-no-args-no-payload
-  (is (= "PING\r\n" (capture "PING" nil nil))))
+  (testing "unknown-op-throws"
+    (is (thrown? clojure.lang.ExceptionInfo (capture "BOGUS" nil nil))))
 
-(deftest snd-pong
-  (is (= "PONG\r\n" (capture "PONG" nil nil))))
-
-(deftest snd-unknown-op-throws
-  (is (thrown? clojure.lang.ExceptionInfo (capture "BOGUS" nil nil))))
-
-(deftest snd-pub-basic
-  (is (= "PUB FOO 11\r\nHello NATS!\r\n"
-         (capture "PUB" {:subject "FOO"} {:body "Hello NATS!"}))))
-
-(deftest snd-pub-with-reply-to
-  (is (= "PUB FRONT.DOOR JOKE.22 11\r\nKnock Knock\r\n"
-         (capture "PUB" {:subject "FRONT.DOOR" :reply-to "JOKE.22"} {:body "Knock Knock"}))))
-
-(deftest snd-pub-empty-payload
-  (is (= "PUB NOTIFY 0\r\n\r\n"
-         (capture "PUB" {:subject "NOTIFY"} {:body nil}))))
-
-(deftest snd-pub-derives-byte-count-even-if-caller-supplied-wrong-value
-  (testing "the :bytes arg is always derived from the actual encoded payload length,
-            so a stale or incorrect value passed in `args` is silently overridden"
+  (testing "pub-basic"
     (is (= "PUB FOO 11\r\nHello NATS!\r\n"
-           (capture "PUB" {:subject "FOO" :bytes 999} {:body "Hello NATS!"})))))
+           (capture "PUB" {:subject "FOO"} {:body "Hello NATS!"}))))
 
-(deftest snd-sub-no-queue-group
-  (is (= "SUB FOO 1\r\n" (capture "SUB" {:subject "FOO" :sid "1"} nil))))
+  (testing "pub-with-reply-to"
+    (is (= "PUB FRONT.DOOR JOKE.22 11\r\nKnock Knock\r\n"
+           (capture "PUB" {:subject "FRONT.DOOR" :reply-to "JOKE.22"} {:body "Knock Knock"}))))
 
-(deftest snd-sub-with-queue-group
-  (is (= "SUB BAR G1 44\r\n" (capture "SUB" {:subject "BAR" :queue-group "G1" :sid "44"} nil))))
+  (testing "pub-empty-payload"
+    (is (= "PUB NOTIFY 0\r\n\r\n"
+           (capture "PUB" {:subject "NOTIFY"} {:body nil}))))
 
-(deftest snd-unsub-no-max-msgs
-  (is (= "UNSUB 1\r\n" (capture "UNSUB" {:sid "1"} nil))))
+  (testing "pub-derives-byte-count-even-if-caller-supplied-wrong-value"
+    (is (= "PUB FOO 11\r\nHello NATS!\r\n"
+           (capture "PUB" {:subject "FOO" :bytes 999} {:body "Hello NATS!"}))))
 
-(deftest snd-unsub-with-max-msgs
-  (is (= "UNSUB 1 5\r\n" (capture "UNSUB" {:sid "1" :max-msgs 5} nil))))
+  (testing "sub-no-queue-group"
+    (is (= "SUB FOO 1\r\n" (capture "SUB" {:subject "FOO" :sid "1"} nil))))
 
-(deftest snd-connect-encodes-json
-  (testing "args-line is valid JSON containing the expected keys/values
-            (not asserting exact key order, since clj/data.json and bb/cheshire
-            may serialize map keys in different orders)"
+  (testing "sub-with-queue-group"
+    (is (= "SUB BAR G1 44\r\n" (capture "SUB" {:subject "BAR" :queue-group "G1" :sid "44"} nil))))
+
+  (testing "unsub-no-max-msgs"
+    (is (= "UNSUB 1\r\n" (capture "UNSUB" {:sid "1"} nil))))
+
+  (testing "unsub-with-max-msgs"
+    (is (= "UNSUB 1 5\r\n" (capture "UNSUB" {:sid "1" :max-msgs 5} nil))))
+
+  (testing "connect-encodes-json"
     (let [wire (capture "CONNECT" {:opts {"verbose" false "lang" "clojure"}} nil)]
       (is (re-matches #"CONNECT \{.*\}\r\n" wire))
       (is (re-find #"\"verbose\":false" wire))
-      (is (re-find #"\"lang\":\"clojure\"" wire)))))
+      (is (re-find #"\"lang\":\"clojure\"" wire))))
 
-(deftest snd-err
-  (is (= "-ERR 'Unknown Protocol Operation'\r\n"
-         (capture "-ERR" {:msg "'Unknown Protocol Operation'"} nil))))
+  (testing "err"
+    (is (= "-ERR 'Unknown Protocol Operation'\r\n"
+           (capture "-ERR" {:msg "'Unknown Protocol Operation'"} nil))))
 
-(deftest snd-hpub-derives-header-and-total-lengths
-  (let [wire (capture "HPUB" {:subject "FOO"} {:headers {:headers {"Bar" ["Baz"]}} :body "Hello NATS!"})]
-    (is (= "HPUB FOO 22 33\r\nNATS/1.0\r\nBar: Baz\r\n\r\nHello NATS!\r\n" wire))))
+  (testing "hpub-derives-header-and-total-lengths"
+    (let [wire (capture "HPUB" {:subject "FOO"} {:headers {:headers {"Bar" ["Baz"]}} :body "Hello NATS!"})]
+      (is (= "HPUB FOO 22 33\r\nNATS/1.0\r\nBar: Baz\r\n\r\nHello NATS!\r\n" wire)))))
 
-;; ---------------------------------------------------------------------------
-;; round-trip: write then read should agree, for every op the client emits
-;; ---------------------------------------------------------------------------
+(deftest round-trip-test
+  (testing "pub"
+    (let [frame (round-trip "PUB" {:subject "FOO" :reply-to "BAR"} {:body "payload"})]
+      (is (= {:subject "FOO" :reply-to "BAR" :bytes 7} (:args frame)))
+      (is (= "payload" (String. ^bytes (:body frame) "UTF-8")))))
 
-(deftest round-trip-pub
-  (let [frame (round-trip "PUB" {:subject "FOO" :reply-to "BAR"} {:body "payload"})]
-    (is (= {:subject "FOO" :reply-to "BAR" :bytes 7} (:args frame)))
-    (is (= "payload" (String. ^bytes (:body frame) "UTF-8")))))
+  (testing "sub-unsub"
+    (is (= {:op "SUB" :args {:subject "FOO" :queue-group "G1" :sid "9"}}
+           (round-trip "SUB" {:subject "FOO" :queue-group "G1" :sid "9"} nil)))
+    (is (= {:op "UNSUB" :args {:sid "9" :max-msgs 3}}
+           (round-trip "UNSUB" {:sid "9" :max-msgs 3} nil))))
 
-(deftest round-trip-sub-unsub
-  (is (= {:op "SUB" :args {:subject "FOO" :queue-group "G1" :sid "9"}}
-         (round-trip "SUB" {:subject "FOO" :queue-group "G1" :sid "9"} nil)))
-  (is (= {:op "UNSUB" :args {:sid "9" :max-msgs 3}}
-         (round-trip "UNSUB" {:sid "9" :max-msgs 3} nil))))
+  (testing "hpub-headers-and-body-preserved"
+    (let [frame (round-trip "HPUB"
+                            {:subject "FOO"}
+                            {:headers {:headers {"BREAKFAST" ["donut" "eggs"]}}
+                             :body "Yum!"})]
+      (is (= {"BREAKFAST" ["donut" "eggs"]} (get-in frame [:headers :headers])))
+      (is (= "Yum!" (String. ^bytes (:body frame) "UTF-8")))))
 
-(deftest round-trip-hpub-headers-and-body-preserved
-  (let [frame (round-trip "HPUB"
-                          {:subject "FOO"}
-                          {:headers {:headers {"BREAKFAST" ["donut" "eggs"]}}
-                           :body "Yum!"})]
-    (is (= {"BREAKFAST" ["donut" "eggs"]} (get-in frame [:headers :headers])))
-    (is (= "Yum!" (String. ^bytes (:body frame) "UTF-8")))))
-
-(deftest round-trip-hpub-keyword-keys-and-scalar-values-normalize-on-read
-  (testing "headers written with keyword keys and bare scalar values come back out
-            the other end (via read-frame) in the same canonical {string [vector]}
-            shape as headers written the old way -- the relaxed input format on
-            the write side is purely a writer convenience, the wire format and
-            the parsed shape are unaffected"
+  (testing "hpub-keyword-keys-and-scalar-values-normalize-on-read"
     (let [frame (round-trip "HPUB"
                             {:subject "$KV.profiles.sue"}
                             {:headers {:headers {:KV-Operation "DEL"}}
                              :body nil})]
       (is (= {"KV-Operation" ["DEL"]} (get-in frame [:headers :headers])))
-      (is (= 0 (alength ^bytes (:body frame)))))))
+      (is (= 0 (alength ^bytes (:body frame))))))
 
-(deftest round-trip-hpub-keyword-keys-mixed-with-multi-value-headers
-  (let [frame (round-trip "HPUB"
-                          {:subject "FOO"}
-                          {:headers {:headers {:Breakfast ["donut" "eggs"]
-                                               "Lunch" "Burger"}}
-                           :body "Yum!"})]
-    (is (= {"Breakfast" ["donut" "eggs"] "Lunch" ["Burger"]}
-           (get-in frame [:headers :headers])))))
+  (testing "hpub-keyword-keys-mixed-with-multi-value-headers"
+    (let [frame (round-trip "HPUB"
+                            {:subject "FOO"}
+                            {:headers {:headers {:Breakfast ["donut" "eggs"]
+                                                 "Lunch" "Burger"}}
+                             :body "Yum!"})]
+      (is (= {"Breakfast" ["donut" "eggs"] "Lunch" ["Burger"]}
+             (get-in frame [:headers :headers])))))
 
-(deftest round-trip-connect-json
-  (let [frame (round-trip "CONNECT" {:opts {"verbose" false "lang" "clojure" "protocol" 1}} nil)]
-    (is (= {"verbose" false "lang" "clojure" "protocol" 1} (get-in frame [:args :opts])))))
+  (testing "connect-json"
+    (let [frame (round-trip "CONNECT" {:opts {"verbose" false "lang" "clojure" "protocol" 1}} nil)]
+      (is (= {"verbose" false "lang" "clojure" "protocol" 1} (get-in frame [:args :opts])))))
 
-(deftest round-trip-ping-pong
-  (is (= {:op "PING"} (round-trip "PING" nil nil)))
-  (is (= {:op "PONG"} (round-trip "PONG" nil nil))))
+  (testing "ping-pong"
+    (is (= {:op "PING"} (round-trip "PING" nil nil)))
+    (is (= {:op "PONG"} (round-trip "PONG" nil nil)))))
