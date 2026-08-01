@@ -57,7 +57,7 @@ See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-proto
 | `:claxon/urls` | `["nats://localhost:4222"]` | Candidate server URLs, tried in random order until one connects. |
 | `:claxon/verify-tls` | `true` | Set this to disable client SSL verification. |
 | `:claxon/ssl-context` | `nil` | Set a custom [SSLContext](docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
-| `:claxon/verify-tls` | `[]` | Pass a seq of paths to PEM encoded CA cert files. |
+| `:claxon/ca-certs` | `[]` | Pass a seq of paths to PEM encoded CA cert files. |
 
 ### invoke
 
