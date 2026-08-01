@@ -5,7 +5,7 @@ Java 21+ and availability of virtual threads is assumed by default.
 ### Clojure CLI/deps.edn and Babashka
 
 ```clojure
-{org.clojars.lispyclouds/claxon {:mvn/version "1.4"}}
+{org.clojars.lispyclouds/claxon {:mvn/version "1.5"}}
 
 ; as a git dep
 {io.github.lispyclouds/claxon {:git/sha "<COMMIT SHA>"}}
@@ -14,7 +14,7 @@ Java 21+ and availability of virtual threads is assumed by default.
 ### Leiningen
 
 ```clojure
-[org.clojars.lispyclouds/claxon "1.4"]
+[org.clojars.lispyclouds/claxon "1.5"]
 ```
 
 ## API
@@ -56,6 +56,8 @@ See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-proto
 | `:claxon/timeout-ms` | `2000` | Socket connect timeout per URL. |
 | `:claxon/urls` | `["nats://localhost:4222"]` | Candidate server URLs, tried in random order until one connects. |
 | `:claxon/verify-tls` | `true` | Set this to disable client SSL verification. |
+| `:claxon/ssl-context` | `nil` | Set a custom [SSLContext](docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
+| `:claxon/verify-tls` | `[]` | Pass a seq of paths to PEM encoded CA cert files. |
 
 ### invoke
 
