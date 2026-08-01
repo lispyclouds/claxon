@@ -58,6 +58,8 @@
                  claxon/executor
                  claxon/handlers
                  claxon/verify-tls
+                 claxon/ssl-context
+                 claxon/ca-certs
                  claxon/frame-shapes]} opts
          {:keys [host port ^Socket socket user password token]}
          (->> urls
@@ -101,7 +103,9 @@
                 (let [ssock (sock/->tls {:socket socket
                                          :host host
                                          :port port
-                                         :verify verify-tls})]
+                                         :verify verify-tls
+                                         :ca-certs ca-certs
+                                         :ssl-context ssl-context})]
                   (assoc conn
                          :socket ssock
                          :in (-> ssock
@@ -123,6 +127,8 @@
                             :claxon/executor
                             :claxon/handlers
                             :claxon/verify-tls
+                            :claxon/ssl-context
+                            :claxon/ca-certs
                             :claxon/frame-shapes)}
              nil)
      conn)))
@@ -136,7 +142,7 @@
 (comment
   (set! *warn-on-reflection* true)
 
-  (def conn (connect {:claxon/verify-tls false}))
+  (def conn (connect {:claxon/ca-certs ["/home/lispyclouds/Downloads/certs/ca-cert.pem"]}))
 
   (invoke conn {:op "PING"})
 

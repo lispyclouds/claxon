@@ -1,14 +1,30 @@
 (ns claxon.impl.sock
   (:import
+   [java.io FileInputStream]
    [java.net Socket]
-   [java.security SecureRandom]
-   [java.security.cert X509Certificate]
+   [java.security KeyStore SecureRandom]
+   [java.security.cert CertificateFactory X509Certificate]
    [javax.net.ssl
     SSLContext
     SSLSocket
     SSLSocketFactory
     TrustManager
+    TrustManagerFactory
     X509TrustManager]))
+
+(defn ca-context
+  [paths]
+  (let [ks (doto (KeyStore/getInstance (KeyStore/getDefaultType))
+             (.load nil nil))
+        _ (doseq [path paths]
+            (let [cert (with-open [is (FileInputStream. ^String path)]
+                         (.generateCertificate (CertificateFactory/getInstance "X.509") is))]
+              (.setCertificateEntry ks "ca" cert)))
+        tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
+              (.init ks))
+        ctx (SSLContext/getInstance "TLS")]
+    (.init ctx nil (.getTrustManagers tmf) nil)
+    ctx))
 
 (defn trust-all-context
   []
@@ -22,10 +38,12 @@
 
 (defn ->tls
   ^Socket
-  [{:keys [^Socket socket ^String host ^Integer port verify]}]
-  (let [factory (if verify
-                  (SSLSocketFactory/getDefault)
-                  (SSLContext/.getSocketFactory (trust-all-context)))
+  [{:keys [^Socket socket ^String host ^Integer port verify ssl-context ca-certs]}]
+  (let [factory (cond
+                  ssl-context (SSLContext/.getSocketFactory ssl-context)
+                  (not verify) (SSLContext/.getSocketFactory (trust-all-context))
+                  (> (count ca-certs) 0) (SSLContext/.getSocketFactory (ca-context ca-certs))
+                  :else (SSLSocketFactory/getDefault))
         ^SSLSocket ssl-socket (SSLSocketFactory/.createSocket factory socket host port true)]
     (when verify
       (let [params (.getSSLParameters ssl-socket)]

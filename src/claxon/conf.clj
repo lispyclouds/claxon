@@ -21,6 +21,8 @@
                                         (binding [*err* *out*]
                                           (println "Error" (:msg args))))}}
    :claxon/verify-tls true
+   :claxon/ssl-context nil
+   :claxon/ca-certs []
    :claxon/frame-shapes {"INFO" {:args [{:name :info :type :json}]}
                          "CONNECT" {:args [{:name :opts :type :json}]}
                          "PUB" {:args [{:name :subject :type :str}
