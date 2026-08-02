@@ -28,6 +28,7 @@ Overall, all it does is:
 - Handlers are plain functions receiving the frame and the connection with basic matching based dispatch. Further logic is often business specific and is left to the users.
 - Claxon is quite minimal in the sense that all it knows is how to do TCP and basic table driven parsing. This ensures flexibility in both backwards and forwards direction and is mostly externally configurable.
 - It is at the end of the day a `some assembly required` lib, trading off convenience over flexibility.
+- It's designed for long-running, sustained throughput usage with emphasis routing performance and low allocations which translates to more interop-heavy code which may have lesser perf on non JVM/interpreted/reflective envs like Babashka which are more suited for short lived code.
 
 ## Comparison to other Clojure NATS clients
 

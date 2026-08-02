@@ -24,33 +24,35 @@
                         (concat [version-line]
                                 header-lines
                                 ["" ""]))]
-    (.getBytes ^String block "UTF-8")))
+    (.getBytes block)))
 
 (defn ->payload-bytes
   [type v]
   (case type
     :headers (encode-headers-block v)
-    :bytes   (cond
-               (bytes? v) v
-               (string? v) (.getBytes ^String v "UTF-8")
-               (nil? v) (byte-array 0)
-               :else (throw (ex-info "payload must be bytes or a string" {:value v})))
+    :bytes (cond
+             (bytes? v) v
+             (string? v) (String/.getBytes v)
+             (nil? v) (byte-array 0)
+             :else (throw (ex-info "payload must be bytes or a string" {:value v})))
     (throw (ex-info "unknown payload type" {:type type}))))
 
 (defn derive-length-args
   [payload-specs encoded]
-  (let [total (apply + (map (fn [^bytes b] (alength b)) encoded))
+  (let [total (apply + (map #(alength ^bytes %) encoded))
         simple (reduce (fn [acc [{:keys [length]} ^bytes raw]]
                          (if (keyword? length)
                            (assoc acc length (alength raw))
                            acc))
                        {}
-                       (map vector payload-specs encoded))
-        composite-arg-names (->> payload-specs
-                                 (keep (fn [{:keys [length]}]
-                                         (when (vector? length) (second length))))
-                                 set)]
-    (reduce #(assoc %1 %2 total) simple composite-arg-names)))
+                       (map vector payload-specs encoded))]
+    (reduce #(assoc %1 %2 total)
+            simple
+            (->> payload-specs
+                 (keep (fn [{:keys [length]}]
+                         (when (vector? length)
+                           (second length))))
+                 set))))
 
 (defn render-args-line
   [arg-specs args]
@@ -80,14 +82,19 @@
           length-args (derive-length-args payload-specs encoded)
           full-args (merge args length-args)
           args-line (render-args-line (:args shape) full-args)
-          control (str op (when (seq args-line)
-                            (str " " args-line)) "\r\n")]
+          control (str op
+                       (when (seq args-line)
+                         (str " " args-line))
+                       "\r\n")]
       (.lock write-lock)
       (try
-        (.write out (.getBytes control "UTF-8"))
+        (.write out (.getBytes control))
         (when (seq encoded)
           (run! #(.write out ^bytes %) encoded)
-          (.write out (.getBytes "\r\n" "UTF-8")))
+          (.write out (.getBytes "\r\n")))
         (.flush out)
         (finally
           (.unlock write-lock))))))
+
+(comment
+  (set! *warn-on-reflection* true))
