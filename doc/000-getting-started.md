@@ -42,22 +42,23 @@ Opens a connection to a NATS server and performs the `INFO`/`CONNECT` handshake.
 
 `opts` is merged over `claxon.conf/defaults`. Any non `:claxon/` namespaced key passed (e.g. `:user`, `:pass`) is forwarded verbatim to the server.
 See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-protocol#connect) for all options.
-| key | default | details |
-| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
-| `:headers` | `true` | Whether the client supports headers. |
-| `:lang` | `clojure` | The implementation language of the client. |
-| `:name` | `claxon` | Client name. |
-| `:pedantic` | `false` | Set additional strict format checking. |
-| `:verbose` | `false` | Set +OK protocol acknowledgements. |
-| `:protocol` | `1` | 0 or 1 inidicates support for dynamic INFO messages from the sever. |
-| `:claxon/executor` | `(Executors/newVirtualThreadPerTaskExecutor)` | Executor used to run the background frame-reading loop and handlers. |
-| `:claxon/frame-shapes` | the full NATS op table | The data-driven protocol description. Override this with care. |
-| `:claxon/handlers` | a `PING` responder and an `-ERR` handler | Handlers registered automatically on connect. |
-| `:claxon/timeout-ms` | `2000` | Socket connect timeout per URL. |
-| `:claxon/urls` | `["nats://localhost:4222"]` | Candidate server URLs, tried in random order until one connects. |
-| `:claxon/verify-tls` | `true` | Set this to disable client SSL verification. |
-| `:claxon/ssl-context` | `nil` | Set a custom [SSLContext](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
-| `:claxon/ca-certs` | `[]` | Pass a seq of paths to PEM encoded CA cert files. |
+
+| key                    | default                                       | details                                                                                                                |
+| ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `:headers`             | `true`                                        | Whether the client supports headers.                                                                                   |
+| `:lang`                | `clojure`                                     | The implementation language of the client.                                                                             |
+| `:name`                | `claxon`                                      | Client name.                                                                                                           |
+| `:pedantic`            | `false`                                       | Set additional strict format checking.                                                                                 |
+| `:verbose`             | `false`                                       | Set +OK protocol acknowledgements.                                                                                     |
+| `:protocol`            | `1`                                           | 0 or 1 inidicates support for dynamic INFO messages from the sever.                                                    |
+| `:claxon/executor`     | `(Executors/newVirtualThreadPerTaskExecutor)` | Executor used to run the background frame-reading loop and handlers.                                                   |
+| `:claxon/frame-shapes` | the full NATS op table                        | The data-driven protocol description. Override this with care.                                                         |
+| `:claxon/handlers`     | a `PING` responder and an `-ERR` handler      | Handlers registered automatically on connect.                                                                          |
+| `:claxon/timeout-ms`   | `2000`                                        | Socket connect timeout per URL.                                                                                        |
+| `:claxon/urls`         | `["nats://localhost:4222"]`                   | Candidate server URLs, tried in random order until one connects.                                                       |
+| `:claxon/verify-tls`   | `true`                                        | Set this to disable client SSL verification.                                                                           |
+| `:claxon/ssl-context`  | `nil`                                         | Set a custom [SSLContext](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
+| `:claxon/ca-certs`     | `[]`                                          | Pass a seq of paths to PEM encoded CA cert files.                                                                      |
 
 ### invoke
 

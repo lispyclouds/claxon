@@ -22,9 +22,9 @@
         scheme (.getScheme uri)
         _ (when (not (contains? supported-schemes scheme))
             (throw (IllegalArgumentException. (str "Unsupported scheme: " url))))
-        host  (.getHost uri)
-        port  (let [p (.getPort uri)]
-                (if (pos? p) p 4222))
+        host (.getHost uri)
+        port (let [p (.getPort uri)]
+               (if (pos? p) p 4222))
         user-info (.getUserInfo uri)
         [user password token]
         (cond
@@ -34,7 +34,9 @@
           (str/includes? user-info ":")
           (let [[u p] (.split COLON user-info 2)]
             [u p nil])
-          :else [user-info nil user-info])]
+
+          :else
+          [user-info nil user-info])]
     {:scheme scheme
      :host host
      :port port

@@ -1,7 +1,7 @@
 (ns claxon.impl.common-test
   (:require
-   [clojure.test :refer [deftest testing is use-fixtures]]
-   [claxon.impl.common :as ic])
+   [claxon.impl.common :as ic]
+   [clojure.test :refer [deftest testing is use-fixtures]])
   (:import
    [java.util.concurrent ExecutorService Executors]))
 
@@ -104,9 +104,7 @@
     (run! #(.shutdown ^ExecutorService %) @test-executors)))
 
 (defn sync-dispatch!
-  "Wraps the plain handlers map every test builds in an atom before calling
-   dispatch, since dispatch now expects an atom (matching how claxon.impl.read/start
-   calls it with (:handlers conn), which is itself an atom)."
+  "Wraps the plain handlers map every test builds in an atom before calling dispatch."
   [frame handlers {:keys [^ExecutorService executor] :as conn}]
   (let [result (ic/dispatch frame (atom handlers) conn)]
     (.get (.submit executor ^Runnable (fn [])))
@@ -147,8 +145,7 @@
     (is (nil? (sync-dispatch! {:op "PING"} {} {:executor (->executor)}))))
 
   (testing "an exception thrown by a handler with no :efn does not stop
-            dispatch, crash the task, or escape to the caller it is
-            simply swallowed"
+            dispatch, crash the task, or escape to the caller it is swallowed"
     (let [conn-a {:executor (->executor)}
           calls (atom [])
           handlers {"PING" {1 {:matches {:args nil}
