@@ -56,7 +56,7 @@ See CONNECT [docs](https://docs.nats.io/reference/reference-protocols/nats-proto
 | `:claxon/timeout-ms` | `2000` | Socket connect timeout per URL. |
 | `:claxon/urls` | `["nats://localhost:4222"]` | Candidate server URLs, tried in random order until one connects. |
 | `:claxon/verify-tls` | `true` | Set this to disable client SSL verification. |
-| `:claxon/ssl-context` | `nil` | Set a custom [SSLContext](docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
+| `:claxon/ssl-context` | `nil` | Set a custom [SSLContext](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html). |
 | `:claxon/ca-certs` | `[]` | Pass a seq of paths to PEM encoded CA cert files. |
 
 ### invoke
@@ -117,7 +117,7 @@ Removes/Unregisters a handler in a connection by id. no-op if not found.
 
 ### close
 
-Tears down the connection: removes its handlers, closes the socket streams, shuts down its executor, and closes the socket.
+Tears down the connection: removes its handlers, closes the socket streams, shuts down its executor and closes the socket.
 
 ```clojure
 (close conn)

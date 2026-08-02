@@ -36,14 +36,6 @@
   (swap! handlers update-vals #(dissoc % id)) ;; Tradeoff: number of ops should be quite low
   nil)
 
-(defn invoke
-  "Sends a frame ({:op ... :args ... :payloads ...}) to the server over conn.
-  op: the operation, eg PUB, SUB, PING etc as a string
-  args: the map of args, eg {:subject foo :sid 10}
-  payloads: the map of (generally bytes payloads), eg for PUB"
-  [conn {:keys [op args payloads]}]
-  (iw/snd conn op args payloads))
-
 (defn connect
   "Connects to a NATS server and performs the INFO/CONNECT handshake, upgrading to TLS if required.
   opts are merged over claxon.conf/defaults.
@@ -132,6 +124,14 @@
                             :claxon/frame-shapes)}
              nil)
      conn)))
+
+(defn invoke
+  "Sends a frame ({:op ... :args ... :payloads ...}) to the server over conn.
+  op: the operation, eg PUB, SUB, PING etc as a string
+  args: the map of args, eg {:subject foo :sid 10}
+  payloads: the map of (generally bytes payloads), eg for PUB"
+  [conn {:keys [op args payloads]}]
+  (iw/snd conn op args payloads))
 
 (defn close
   "Closes conn by cleaning up all underlying resources."

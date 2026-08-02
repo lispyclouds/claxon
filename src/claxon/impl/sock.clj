@@ -21,20 +21,18 @@
                          (.generateCertificate (CertificateFactory/getInstance "X.509") is))]
               (.setCertificateEntry ks "ca" cert)))
         tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
-              (.init ks))
-        ctx (SSLContext/getInstance "TLS")]
-    (.init ctx nil (.getTrustManagers tmf) nil)
-    ctx))
+              (.init ks))]
+    (doto (SSLContext/getInstance "TLS")
+      (.init nil (.getTrustManagers tmf) nil))))
 
 (defn trust-all-context
   []
   (let [trust-all (reify X509TrustManager
                     (checkClientTrusted [_ _ _])
                     (checkServerTrusted [_ _ _])
-                    (getAcceptedIssuers [_] (make-array X509Certificate 0)))
-        ctx (SSLContext/getInstance "TLS")]
-    (.init ctx nil (into-array TrustManager [trust-all]) (SecureRandom.))
-    ctx))
+                    (getAcceptedIssuers [_] (make-array X509Certificate 0)))]
+    (doto (SSLContext/getInstance "TLS")
+      (.init nil (into-array TrustManager [trust-all]) (SecureRandom.)))))
 
 (defn ->tls
   ^Socket
