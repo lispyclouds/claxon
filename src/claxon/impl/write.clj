@@ -1,6 +1,6 @@
 (ns claxon.impl.write
   (:require
-   [claxon.impl.common :as ic]
+   [clojure.data.json :as json]
    [clojure.string :as str])
   (:import
    [java.io OutputStream]
@@ -60,7 +60,7 @@
     (if (= 1 (count arg-specs))
       (let [{:keys [name type]} (first arg-specs)]
         (case type
-          :json (ic/write-json (get args name))
+          :json (json/write-str (get args name))
           (str (get args name))))
       (->> arg-specs
            (keep (fn [{:keys [name optional]}]

@@ -1,15 +1,9 @@
 (ns claxon.impl.common
   (:require
-   #?(:bb [cheshire.core :as json]
-      :clj [clojure.data.json :as json])
    [clojure.string :as str])
   (:import
    [java.net URI]
    [java.util.concurrent ExecutorService]))
-
-(def read-json #?(:bb json/parse-string :clj json/read-str))
-
-(def write-json #?(:bb json/generate-string :clj json/write-str))
 
 (def ^:const DOT #"\.")
 

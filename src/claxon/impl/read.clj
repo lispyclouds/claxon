@@ -1,6 +1,7 @@
 (ns claxon.impl.read
   (:require
    [claxon.impl.common :as ic]
+   [clojure.data.json :as json]
    [clojure.string :as str])
   (:import
    [java.io EOFException InputStream]
@@ -140,7 +141,7 @@
     (if (= 1 (count arg-specs))
       (let [{:keys [name type]} (first arg-specs)]
         {name (case type
-                :json (ic/read-json rest-line)
+                :json (json/read-str rest-line)
                 rest-line)})
       (parse-tokenized-args arg-specs (str/split rest-line #"[ \t]+")))))
 
