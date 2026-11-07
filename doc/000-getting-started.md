@@ -1,11 +1,11 @@
 # Getting started
 
-Java 21+ and availability of virtual threads is assumed by default.
+Babashka 1.13.224+, Java 21+ and availability of virtual threads is assumed by default.
 
 ### Clojure CLI/deps.edn and Babashka
 
 ```clojure
-{org.clojars.lispyclouds/claxon {:mvn/version "1.5"}}
+{org.clojars.lispyclouds/claxon {:mvn/version "1.6"}}
 
 ; as a git dep
 {io.github.lispyclouds/claxon {:git/sha "<COMMIT SHA>"}}
@@ -14,7 +14,7 @@ Java 21+ and availability of virtual threads is assumed by default.
 ### Leiningen
 
 ```clojure
-[org.clojars.lispyclouds/claxon "1.5"]
+[org.clojars.lispyclouds/claxon "1.6"]
 ```
 
 ## API
